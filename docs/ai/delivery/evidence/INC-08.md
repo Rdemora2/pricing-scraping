@@ -28,6 +28,14 @@
 - validação estritamente positiva aplicada em domínio, extratores e banco;
 - testes direcionados de dinheiro, JSON-LD e fontes reais: `45 passed`;
 - Ruff e `ty` verdes no primeiro ciclo.
+- os estágios `runtime`, `browser-runtime` e `test-runtime` ficaram explícitos;
+- imagens locais: API/laboratório com aproximadamente 153 MB e worker com
+  Chromium com aproximadamente 638 MB;
+- o primeiro smoke do serviço de teste revelou `pytest` fora do `PATH` e os
+  arquivos de contrato ausentes; ambos foram corrigidos e revalidados;
+- Compose isolado `pricing-intel-inc08`: migração limpa, API saudável,
+  `2 passed` de integração e `97 passed` unitários executados dentro do
+  container dedicado.
 
 ## Segurança e rollback
 

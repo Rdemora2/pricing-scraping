@@ -20,6 +20,18 @@ COPY lab ./lab
 
 RUN uv sync --frozen --no-dev
 
+FROM builder AS test-runtime
+
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONPATH="/app"
+
+RUN uv sync --frozen
+
+COPY tests ./tests
+COPY Dockerfile compose.yaml ./
+
+CMD ["pytest"]
+
 FROM python:3.14-slim AS runtime
 
 ENV PATH="/app/.venv/bin:$PATH" \

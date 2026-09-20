@@ -12,7 +12,7 @@ Este arquivo é um índice, não uma cópia do código. O objetivo é apontar on
 | Tratamento de erros | `collection/extraction.py`, `jobs/tasks.py`, routers | testes de entradas inválidas e estados | Backend |
 | Observabilidade | `logging.py`, `CollectionRun`, `/runs/{id}` | logs estruturados + smoke | Backend |
 | Testes unitários | `tests/unit/` | `uv run pytest tests/unit` | Backend |
-| Testes integração/e2e | `docs/ai/delivery/evidence/` | Compose + browser | Plataforma |
+| Testes integração/e2e | `tests/integration/`, `docs/ai/delivery/evidence/` | serviço Compose `test` + browser | Plataforma |
 | Deploy e rollback | somente local: `README.md`, `compose.yaml` | build/smoke; sem deploy | Plataforma |
 
 ## Convenções estáveis

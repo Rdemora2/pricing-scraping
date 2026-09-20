@@ -105,7 +105,12 @@ Validação de containers:
 ```bash
 docker compose config --quiet
 docker compose build
+docker compose --profile test run --rm test pytest tests/integration
 ```
+
+O serviço `test` usa um estágio próprio com dependências de desenvolvimento e
+não é iniciado no fluxo normal. API, migração e laboratório usam o estágio
+Python enxuto; somente o worker usa o estágio com Chromium.
 
 ## Configuração
 

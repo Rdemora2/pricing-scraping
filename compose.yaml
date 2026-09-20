@@ -11,6 +11,7 @@ x-app-service: &app-service
   build:
     context: .
     dockerfile: Dockerfile
+    target: runtime
   environment: *app-environment
   init: true
   restart: unless-stopped
@@ -117,10 +118,31 @@ services:
       - application
       - laboratory
 
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test-runtime
+    environment:
+      <<: *app-environment
+      API_BASE_URL: http://api:8000
+    command:
+      - pytest
+    depends_on:
+      api:
+        condition: service_healthy
+    init: true
+    profiles:
+      - test
+    restart: "no"
+    networks:
+      - application
+
   lab-store-a:
     build:
       context: .
       dockerfile: Dockerfile
+      target: runtime
     command:
       - uvicorn
       - lab.sources.store_a.app:app
@@ -151,6 +173,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: runtime
     command:
       - uvicorn
       - lab.sources.store_b.app:app
