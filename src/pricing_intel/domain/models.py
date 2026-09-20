@@ -93,6 +93,7 @@ class Product(_Model):
     name: str
     brand: str
     category: str
+    created_at: datetime
 
 
 class Variant(_Model):
