@@ -24,8 +24,8 @@ class Money(NamedTuple):
     def from_decimal(cls, amount: Decimal, currency: str) -> Money:
         if not amount.is_finite():
             raise ValueError("Money amount must be finite")
-        if amount < 0:
-            raise ValueError("Money amount cannot be negative")
+        if amount <= 0:
+            raise ValueError("Money amount must be positive")
         normalized_currency = currency.strip().upper()
         if len(normalized_currency) != 3 or not normalized_currency.isalpha():
             raise ValueError("Money currency must be a three-letter code")

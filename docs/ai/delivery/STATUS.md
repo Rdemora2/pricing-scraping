@@ -2,7 +2,7 @@
 
 **Atualizado em:** `2026-09-20`
 **Estado global:** `LOCAL_VERIFIED_WITH_EXTERNAL_GATE`
-**Unidade ativa:** `INC-07B` — revisão independente externa pendente
+**Unidade ativa:** `INC-08` — auditoria e endurecimento em andamento
 
 O roadmap conclui o laboratório e avança o portal local de inteligência de
 preços com fontes reais. A entrega permanece limitada ao ambiente local; não
@@ -38,6 +38,12 @@ o user-agent declarado do coletor. Fingerprint de Chrome, cookies de usuário,
 rotação de identidade e contorno de CAPTCHA permanecem fora do contrato. A suíte
 de 93 testes, lint, typecheck e build estão verdes; revisão independente segue
 como gate externo.
+
+O `INC-08` reabre a superfície completa antes da entrega final. A revisão inicial
+identificou preço zero aceito em uma fronteira, estágio Docker incorreto para
+serviços sem browser, comando de teste em container não reproduzível e catálogo
+menor que as famílias oficialmente disponíveis. As correções são entregues em
+commits independentes e revalidadas no snapshot consolidado.
 
 O reviewer independente aprovou localmente o ciclo 2 do INC-05 no fingerprint
 `fadb3ec6d99b17b80386d1296655a3ef65be8f3523e59bd2760133dcb64d0b75`, sem

@@ -83,9 +83,12 @@ def _offer(product: dict) -> dict:
 def _price(offer: dict) -> Decimal:
     raw = offer.get("price", offer.get("lowPrice"))
     try:
-        return Decimal(str(raw))
+        price = Decimal(str(raw))
     except (InvalidOperation, TypeError) as exc:
         raise ExtractionError(f"unparseable retail price: {raw!r}") from exc
+    if not price.is_finite() or price <= 0:
+        raise ExtractionError("retail price must be finite and positive")
+    return price
 
 
 def _iphone_attributes(storage: str, color: str) -> dict[str, str]:

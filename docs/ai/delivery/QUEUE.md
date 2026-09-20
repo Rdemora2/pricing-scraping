@@ -13,6 +13,7 @@ ferramenta ou documentação do produto; esta fila é o índice operacional loca
 | 6 | `INC-06` | Amazon, Americanas e Carrefour ampliam com evidência real o iPhone 17 256 GB Preto; Magalu/iPlace aparecem sem mascarar bloqueios diretos | `.` | `INC-04` | `LOCAL_VERIFIED_WITH_EXTERNAL_GATE` |
 | 7 | `INC-07A` | Central consolida inteligência por aparelho com cobertura, custo por GB e efeitos explicáveis de armazenamento e cor | `.` | `INC-04` | `LOCAL_VERIFIED_WITH_EXTERNAL_GATE` |
 | 8 | `INC-07B` | Coletor negocia HTML em português com perfil HTTP estável e transparente, sem impersonação ou contorno de bloqueios | `.` | `INC-06` | `LOCAL_VERIFIED_WITH_EXTERNAL_GATE` |
+| 9 | `INC-08` | Auditoria integral endurece integridade de preços, imagens Docker, testes de runtime, catálogo oficial, arquitetura frontend e documentação | `.` | `INC-07B` | `IN_PROGRESS` |
 
 Fila vazia significa governança ainda não adotada; não invente unidades.
 
