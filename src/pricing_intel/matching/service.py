@@ -43,6 +43,8 @@ def decide_match(
     if gtin:
         if variant_by_gtin is None:
             return None
+        if variant_by_gtin.attributes_signature != compute_signature(attributes):
+            return None
         return MatchDecision(
             variant_id=variant_by_gtin.id,
             confidence=Decimal("1.000"),

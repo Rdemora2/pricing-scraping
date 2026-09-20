@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from pricing_intel.api.routers import catalog, collection
+from pricing_intel.api.routers import catalog, collection, discovery
 from pricing_intel.db.pool import close_pool, get_pool
 from pricing_intel.jobs.app import app as procrastinate_app
 from pricing_intel.logging import configure_logging
@@ -49,6 +49,7 @@ def create_app() -> FastAPI:
 
     app.include_router(collection.router)
     app.include_router(catalog.router)
+    app.include_router(discovery.router)
 
     @app.get("/health", tags=["ops"])
     async def health() -> dict[str, str]:

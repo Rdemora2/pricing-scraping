@@ -66,6 +66,15 @@ class Availability(StrEnum):
     UNKNOWN = "unknown"
 
 
+class PriceBasis(StrEnum):
+    """Commercial meaning of the displayed price."""
+
+    ADVERTISED = "advertised"
+    CASH = "cash"
+    INSTALLMENT = "installment"
+    CONDITIONAL = "conditional"
+
+
 class MatchMethod(StrEnum):
     RULE_GTIN_EXACT = "rule:gtin_exact"
     RULE_ATTRIBUTES = "rule:attributes"

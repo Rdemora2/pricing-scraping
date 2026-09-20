@@ -30,12 +30,22 @@ class LabStoreSpider(scrapy.Spider):
     product_link_css: str
     next_page_css: str
 
-    def __init__(self, source_id: str | None = None, run_id: str | None = None, *args, **kwargs):
+    allow_private_network = True
+
+    def __init__(
+        self,
+        source_id: str | None = None,
+        run_id: str | None = None,
+        base_url: str | None = None,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
-        if not source_id or not run_id:
-            raise ValueError(f"{self.name} requires -a source_id=... -a run_id=...")
+        if not source_id or not run_id or not base_url:
+            raise ValueError(f"{self.name} requires source_id, run_id and base_url")
         self.source_id = source_id
         self.run_id = run_id
+        self.base_url = base_url.rstrip("/")
 
     def parse_category(self, response: scrapy.http.Response):
         yield DiscoveredPageItem(

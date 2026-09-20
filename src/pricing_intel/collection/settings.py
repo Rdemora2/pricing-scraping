@@ -23,6 +23,9 @@ AUTOTHROTTLE_ENABLED = True
 AUTOTHROTTLE_START_DELAY = 1.0
 AUTOTHROTTLE_TARGET_CONCURRENCY = float(_settings.collection_concurrency_per_domain)
 DOWNLOAD_TIMEOUT = 15
+DOWNLOAD_MAXSIZE = 5_000_000
+DOWNLOAD_WARNSIZE = 4_000_000
+REDIRECT_MAX_TIMES = 3
 RETRY_TIMES = 3
 RETRY_HTTP_CODES = [500, 502, 503, 504, 429]
 
@@ -30,7 +33,13 @@ ITEM_PIPELINES = {
     "pricing_intel.collection.pipelines.PostgresPipeline": 300,
 }
 
+DOWNLOADER_MIDDLEWARES = {
+    "pricing_intel.collection.network_policy.OutboundPolicyMiddleware": 50,
+}
+
 REQUEST_FINGERPRINTER_IMPLEMENTATION = "2.7"
 TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
 
 LOG_LEVEL = _settings.log_level
+TELNETCONSOLE_ENABLED = False
+REMOTE_CONTROL_ENABLED = False

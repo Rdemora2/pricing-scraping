@@ -45,6 +45,19 @@ def test_unknown_gtin_does_not_fall_back_to_attributes() -> None:
     assert decision is None
 
 
+def test_gtin_match_rejects_conflicting_variant_attributes() -> None:
+    variant = make_variant()
+
+    decision = decide_match(
+        gtin=variant.gtin,
+        attributes={"storage_gb": "256", "color": "Lavanda"},
+        variant_by_gtin=variant,
+        variant_by_signature=None,
+    )
+
+    assert decision is None
+
+
 def test_attributes_match_only_when_gtin_is_absent() -> None:
     variant = make_variant(gtin=None)
 

@@ -26,8 +26,15 @@ class SpiderRunResult:
         return self.exit_code == 0
 
 
-async def run_spider(*, spider_name: str, source_id: UUID, run_id: UUID) -> SpiderRunResult:
-    env = {**os.environ, "SCRAPY_SETTINGS_MODULE": "pricing_intel.collection.settings"}
+async def run_spider(
+    *, spider_name: str, source_id: UUID, run_id: UUID, base_url: str
+) -> SpiderRunResult:
+    env = {
+        **os.environ,
+        "SCRAPY_SETTINGS_MODULE": "pricing_intel.collection.settings",
+        "XDG_CACHE_HOME": "/tmp/pricing-intel-cache",
+        "XDG_STATE_HOME": "/tmp/pricing-intel-state",
+    }
     process = await asyncio.create_subprocess_exec(
         sys.executable,
         "-m",
@@ -38,6 +45,8 @@ async def run_spider(*, spider_name: str, source_id: UUID, run_id: UUID) -> Spid
         f"source_id={source_id}",
         "-a",
         f"run_id={run_id}",
+        "-a",
+        f"base_url={base_url}",
         env=env,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,

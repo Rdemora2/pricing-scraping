@@ -41,8 +41,10 @@ def _run_response(run: CollectionRun) -> RunResponse:
 
 
 @router.get("/sources", response_model=list[SourceResponse])
-async def list_sources() -> list[SourceResponse]:
-    sources = await sources_q.list_enabled_sources()
+async def list_sources(enabled_only: bool = True) -> list[SourceResponse]:
+    sources = (
+        await sources_q.list_enabled_sources() if enabled_only else await sources_q.list_sources()
+    )
     return [
         SourceResponse(
             id=source.id,
@@ -50,6 +52,7 @@ async def list_sources() -> list[SourceResponse]:
             base_url=source.base_url,
             kind=source.kind.value,
             status=source.status.value,
+            adapter_name=source.adapter_name,
         )
         for source in sources
     ]

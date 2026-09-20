@@ -12,6 +12,14 @@ LIST_ENABLED_SOURCES = """
     ORDER BY name
 """
 
+LIST_SOURCES = """
+    SELECT id, name, base_url, kind, status, adapter_name, created_at
+    FROM source
+    ORDER BY
+        CASE status WHEN 'enabled' THEN 0 WHEN 'candidate' THEN 1 ELSE 2 END,
+        name
+"""
+
 GET_SOURCE_BY_ID = """
     SELECT id, name, base_url, kind, status, adapter_name, created_at
     FROM source
@@ -198,12 +206,16 @@ INSERT_EVIDENCE = """
 
 PRUNE_EVIDENCE = """
     DELETE FROM evidence
-    WHERE id IN (
-        SELECT id FROM evidence
-        WHERE source_id = %(source_id)s AND url = %(url)s
-        ORDER BY fetched_at DESC
-        OFFSET %(keep)s
-    )
+    WHERE source_id = %(source_id)s
+      AND url = %(url)s
+      AND collection_run_id NOT IN (
+          SELECT collection_run_id
+          FROM evidence
+          WHERE source_id = %(source_id)s AND url = %(url)s
+          GROUP BY collection_run_id
+          ORDER BY max(fetched_at) DESC
+          LIMIT %(keep)s
+      )
 """
 
 LATEST_OBSERVATION_SNAPSHOTS_FOR_VARIANT = """

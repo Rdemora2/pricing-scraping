@@ -46,7 +46,12 @@ async def run_collection(run_id: str) -> None:
     log = logger.bind(run_id=run_id, source=source.name, spider=source.adapter_name)
     log.info("collection_run_started")
 
-    result = await run_spider(spider_name=source.adapter_name, source_id=source.id, run_id=run_uuid)
+    result = await run_spider(
+        spider_name=source.adapter_name,
+        source_id=source.id,
+        run_id=run_uuid,
+        base_url=source.base_url,
+    )
     stats = await runs_q.get_run_stats(run_uuid)
 
     if not result.succeeded:
@@ -60,6 +65,16 @@ async def run_collection(run_id: str) -> None:
             status=RunStatus.FAILED,
             stats=stats,
             failure_reason=f"spider exited with code {result.exit_code}",
+        )
+        return
+
+    if stats.get("offers_observed", 0) == 0:
+        log.error("collection_run_empty")
+        await runs_q.finish_run(
+            run_id=run_uuid,
+            status=RunStatus.FAILED,
+            stats=stats,
+            failure_reason="collector produced no observations",
         )
         return
 

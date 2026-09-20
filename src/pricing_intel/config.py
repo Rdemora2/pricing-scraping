@@ -21,10 +21,15 @@ class Settings(BaseSettings):
     # discovery scheduler; kept in one place so the two agree.
     collection_concurrency_per_domain: int = 2
 
-    # How many evidence snapshots to keep per (source, url). Older rows are
-    # pruned after each write so the evidence table does not grow unbounded
-    # while still supporting reproducibility of recent runs.
+    # How many complete collection runs to keep per (source, url). Every offer
+    # extracted from a retained page remains linked to the same HTML evidence.
     evidence_retention_per_url: int = 5
+
+    # Optional. Broad web discovery stays disabled until the operator provides
+    # a Brave Search API key; the key is only read server-side.
+    brave_search_api_key: str | None = None
+    discovery_max_results: int = 20
+    discovery_query_variations: int = 3
 
     @property
     def sqlalchemy_database_url(self) -> str:

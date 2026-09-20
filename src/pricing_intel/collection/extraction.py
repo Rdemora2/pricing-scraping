@@ -37,13 +37,18 @@ class ExtractedListing:
 
 _AVAILABILITY_MAP = {
     "https://schema.org/InStock": Availability.IN_STOCK,
+    "http://schema.org/InStock": Availability.IN_STOCK,
     "https://schema.org/OutOfStock": Availability.OUT_OF_STOCK,
+    "http://schema.org/OutOfStock": Availability.OUT_OF_STOCK,
 }
 
 _CONDITION_MAP = {
     "https://schema.org/NewCondition": Condition.NEW,
+    "http://schema.org/NewCondition": Condition.NEW,
     "https://schema.org/UsedCondition": Condition.USED,
+    "http://schema.org/UsedCondition": Condition.USED,
     "https://schema.org/RefurbishedCondition": Condition.REFURBISHED,
+    "http://schema.org/RefurbishedCondition": Condition.REFURBISHED,
 }
 
 # Attribute-level PropertyValue names that identify a *variant* (as opposed
@@ -51,17 +56,50 @@ _CONDITION_MAP = {
 _VARIANT_ATTRIBUTE_NAMES = {"storage_gb", "color"}
 
 
-def find_product_json_ld(html: str) -> dict:
-    """Returns the first ``schema.org/Product`` JSON-LD block on the page."""
+def _walk_json_ld(value: object):
+    if isinstance(value, list):
+        for item in value:
+            yield from _walk_json_ld(item)
+    elif isinstance(value, dict):
+        graph = value.get("@graph")
+        if graph is not None:
+            yield from _walk_json_ld(graph)
+        variants = value.get("hasVariant")
+        if variants is not None:
+            yield from _walk_json_ld(variants)
+        yield value
+
+
+def iter_product_json_ld(html: str):
+    """Yields Product blocks from objects, arrays and ``@graph`` containers."""
     selector = Selector(text=html)
     for raw in selector.css('script[type="application/ld+json"]::text').getall():
         try:
             data = json.loads(raw)
         except json.JSONDecodeError:
             continue
-        if isinstance(data, dict) and data.get("@type") == "Product":
-            return data
+        for item in _walk_json_ld(data):
+            item_types = item.get("@type")
+            if item_types == "Product" or (
+                isinstance(item_types, list) and "Product" in item_types
+            ):
+                yield item
+
+
+def find_product_json_ld(html: str) -> dict:
+    """Returns the first ``schema.org/Product`` JSON-LD block on the page."""
+    product = next(iter_product_json_ld(html), None)
+    if product is not None:
+        return product
     raise ExtractionError("no schema.org Product JSON-LD block found on page")
+
+
+def parse_availability(value: str) -> Availability:
+    return _AVAILABILITY_MAP.get(value, Availability.UNKNOWN)
+
+
+def parse_condition(value: str) -> Condition:
+    return _CONDITION_MAP.get(value, Condition.UNKNOWN)
 
 
 def _properties_map(items: list[dict] | None) -> dict[str, str]:
@@ -142,8 +180,8 @@ def extract_listing(product: dict) -> ExtractedListing:
         seller_display_name=seller_name,
         price_amount=_parse_price(price),
         currency=price_currency,
-        availability=_AVAILABILITY_MAP.get(offer.get("availability", ""), Availability.UNKNOWN),
-        condition=_CONDITION_MAP.get(offer.get("itemCondition", ""), Condition.UNKNOWN),
+        availability=parse_availability(offer.get("availability", "")),
+        condition=parse_condition(offer.get("itemCondition", "")),
         payment_terms=_parse_payment_terms(offer_properties),
         shipping=_parse_shipping(offer_properties),
     )

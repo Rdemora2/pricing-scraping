@@ -45,7 +45,7 @@ services:
       - -c
       - >-
         alembic upgrade head &&
-        procrastinate -a pricing_intel.jobs.app.app schema --apply &&
+        python scripts/apply_jobs_schema.py &&
         python scripts/seed_catalog.py
     depends_on:
       postgres:
@@ -54,6 +54,9 @@ services:
 
   api:
     <<: *app-service
+    environment:
+      <<: *app-environment
+      BRAVE_SEARCH_API_KEY: ${BRAVE_SEARCH_API_KEY:-}
     command:
       - uvicorn
       - pricing_intel.api.main:app

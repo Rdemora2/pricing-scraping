@@ -25,18 +25,25 @@ EXTRACTOR_VERSION = "1.0.0"
 
 
 class PostgresPipeline:
-    def open_spider(self, spider):
+    def __init__(self, crawler):
+        self._crawler = crawler
+
+    @classmethod
+    def from_crawler(cls, crawler):
+        return cls(crawler)
+
+    def open_spider(self):
         self.db = SyncDb.connect()
 
-    def close_spider(self, spider):
+    def close_spider(self):
         self.db.close()
 
-    def process_item(self, item, spider):
+    def process_item(self, item):
         adapter = ItemAdapter(item)
         if isinstance(item, DiscoveredPageItem):
             self._handle_discovered_page(adapter)
         elif isinstance(item, ListingItem):
-            self._handle_listing(adapter, spider)
+            self._handle_listing(adapter, self._crawler.spider)
         return item
 
     def _handle_discovered_page(self, adapter: ItemAdapter) -> None:
@@ -91,8 +98,8 @@ class PostgresPipeline:
             evidence_type=EvidenceType.LISTING_PAGE,
             url=url,
             http_status=adapter.get("http_status"),
-            extractor_name=EXTRACTOR_NAME,
-            extractor_version=EXTRACTOR_VERSION,
+            extractor_name=adapter.get("extractor_name", EXTRACTOR_NAME),
+            extractor_version=adapter.get("extractor_version", EXTRACTOR_VERSION),
             content_hash=content_hash,
             raw_excerpt=raw_html[:5000],
             fetched_at=now,

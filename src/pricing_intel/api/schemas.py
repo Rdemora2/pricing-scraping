@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from pricing_intel.domain.models import PaymentTerms, ShippingTerms
 from pricing_intel.domain.money import Money
@@ -29,6 +29,68 @@ class SourceResponse(BaseModel):
     base_url: str
     kind: str
     status: str
+    adapter_name: str
+
+
+class DiscoverySearchRequest(BaseModel):
+    query: str = Field(min_length=3, max_length=160)
+
+    @field_validator("query")
+    @classmethod
+    def query_must_have_content(cls, value: str) -> str:
+        value = value.strip()
+        if len(value) < 3:
+            raise ValueError("query must contain at least three non-space characters")
+        return value
+
+
+class SourceCandidateResponse(BaseModel):
+    id: UUID
+    url: str
+    domain: str
+    title: str
+    snippet: str
+    provider: str
+    query: str
+    trust_tier: str
+    status: str
+    discovered_at: datetime
+
+
+class ManualCandidateRequest(BaseModel):
+    url: str = Field(min_length=8, max_length=2000)
+    title: str = Field(min_length=2, max_length=300)
+    snippet: str = Field(default="", max_length=1000)
+
+
+class VariantCreateRequest(BaseModel):
+    attributes: dict[str, str]
+    gtin: str | None = Field(default=None, min_length=8, max_length=14)
+
+    @field_validator("attributes")
+    @classmethod
+    def validate_attributes(cls, value: dict[str, str]) -> dict[str, str]:
+        if not 1 <= len(value) <= 12:
+            raise ValueError("a variant must have between 1 and 12 attributes")
+        normalized = {key.strip(): item.strip() for key, item in value.items()}
+        if any(
+            not key or not item or len(key) > 50 or len(item) > 100
+            for key, item in normalized.items()
+        ):
+            raise ValueError("variant attributes must be non-empty and bounded")
+        return normalized
+
+
+class ProductCreateRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=200)
+    brand: str = Field(min_length=1, max_length=100)
+    category: str = Field(default="smartphone", min_length=2, max_length=100)
+    variants: list[VariantCreateRequest] = Field(min_length=1, max_length=100)
+
+
+class ProductDetailResponse(BaseModel):
+    product: ProductResponse
+    variants: list[VariantResponse]
 
 
 class RunResponse(BaseModel):
@@ -83,6 +145,7 @@ class ComparisonResponse(BaseModel):
     has_comparable_data: bool
     included_offer_count: int
     source_count: int
+    retailer_count: int
     min_price: str | None
     median_price: str | None
     max_price: str | None
@@ -100,6 +163,7 @@ class ComparisonResponse(BaseModel):
             has_comparable_data=result.has_comparable_data,
             included_offer_count=result.included_offer_count,
             source_count=result.source_count,
+            retailer_count=result.retailer_count,
             min_price=_format_money(result.min_price_minor_units, result.currency),
             median_price=_format_money(result.median_price_minor_units, result.currency),
             max_price=_format_money(result.max_price_minor_units, result.currency),

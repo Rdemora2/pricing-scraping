@@ -16,6 +16,12 @@ async def list_enabled_sources() -> list[Source]:
         return await cur.fetchall()
 
 
+async def list_sources() -> list[Source]:
+    async with connection() as conn, conn.cursor(row_factory=class_row(Source)) as cur:
+        await cur.execute(sql.LIST_SOURCES)
+        return await cur.fetchall()
+
+
 async def get_source(source_id: UUID) -> Source | None:
     async with connection() as conn, conn.cursor(row_factory=class_row(Source)) as cur:
         await cur.execute(sql.GET_SOURCE_BY_ID, {"source_id": source_id})

@@ -21,6 +21,7 @@ from pricing_intel.domain.enums import (
     EvidenceType,
     MatchMethod,
     PageType,
+    PriceBasis,
     RunStatus,
     RunTrigger,
     SourceKind,
@@ -40,6 +41,20 @@ class Source(_Model):
     status: SourceStatus
     adapter_name: str
     created_at: datetime
+
+
+class SourceCandidate(_Model):
+    id: UUID
+    url: str
+    canonical_url: str
+    domain: str
+    title: str
+    snippet: str
+    provider: str
+    query: str
+    trust_tier: str
+    status: str
+    discovered_at: datetime
 
 
 class DiscoveredPage(_Model):
@@ -141,6 +156,9 @@ class PaymentTerms(_Model):
     installment_count: int | None = None
     cash_discount_pct: Decimal | None = None
     coupon_code: str | None = None
+    price_basis: PriceBasis = PriceBasis.ADVERTISED
+    is_conditional: bool = False
+    condition_summary: str | None = None
 
 
 class VariantOfferSnapshot(_Model):
