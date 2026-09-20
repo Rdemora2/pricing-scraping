@@ -22,10 +22,15 @@ class Money(NamedTuple):
 
     @classmethod
     def from_decimal(cls, amount: Decimal, currency: str) -> Money:
+        if not amount.is_finite():
+            raise ValueError("Money amount must be finite")
         if amount < 0:
             raise ValueError("Money amount cannot be negative")
+        normalized_currency = currency.strip().upper()
+        if len(normalized_currency) != 3 or not normalized_currency.isalpha():
+            raise ValueError("Money currency must be a three-letter code")
         quantized = amount.quantize(_CENTS, rounding=ROUND_HALF_UP)
-        return cls(minor_units=int(quantized * 100), currency=currency.upper())
+        return cls(minor_units=int(quantized * 100), currency=normalized_currency)
 
     def to_decimal(self) -> Decimal:
         # Plain division can normalize away trailing zeros (3499.00 -> 3499);

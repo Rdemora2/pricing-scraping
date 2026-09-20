@@ -47,6 +47,7 @@ known-first-party = ["pricing_intel"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 asyncio_mode = "auto"
 addopts = "-ra"
 
@@ -54,7 +55,7 @@ addopts = "-ra"
 source = ["src/pricing_intel"]
 
 [tool.ty.environment]
-root = ["src"]
+root = ["src", "."]
 
 [tool.ty.src]
 exclude = [".codex", ".claude", ".agents"]

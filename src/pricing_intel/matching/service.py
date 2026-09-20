@@ -40,7 +40,9 @@ def decide_match(
 ) -> MatchDecision | None:
     """GTIN is authoritative when present; attribute signature is the
     fallback for listings that omit it (common for non-GTIN sources)."""
-    if gtin and variant_by_gtin is not None:
+    if gtin:
+        if variant_by_gtin is None:
+            return None
         return MatchDecision(
             variant_id=variant_by_gtin.id,
             confidence=Decimal("1.000"),

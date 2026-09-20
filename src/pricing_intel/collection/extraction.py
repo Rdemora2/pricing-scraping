@@ -84,11 +84,14 @@ def _parse_price(raw_price: object) -> Decimal:
 def _parse_payment_terms(properties: dict[str, str]) -> PaymentTerms:
     installment_count = properties.get("installmentCount")
     cash_discount_pct = properties.get("cashDiscountPct")
-    return PaymentTerms(
-        installment_count=int(installment_count) if installment_count else None,
-        cash_discount_pct=Decimal(cash_discount_pct) if cash_discount_pct else None,
-        coupon_code=properties.get("couponCode") or None,
-    )
+    try:
+        return PaymentTerms(
+            installment_count=int(installment_count) if installment_count else None,
+            cash_discount_pct=Decimal(cash_discount_pct) if cash_discount_pct else None,
+            coupon_code=properties.get("couponCode") or None,
+        )
+    except (InvalidOperation, ValueError) as exc:
+        raise ExtractionError("Offer contains invalid payment terms") from exc
 
 
 def _parse_shipping(properties: dict[str, str]) -> ShippingTerms:
@@ -97,12 +100,15 @@ def _parse_shipping(properties: dict[str, str]) -> ShippingTerms:
         return ShippingTerms(known=False)
     cost = properties.get("shippingCostMinorUnits")
     threshold = properties.get("freeShippingThresholdMinorUnits")
-    return ShippingTerms(
-        known=True,
-        cost_minor_units=int(cost) if cost is not None else None,
-        cost_currency="BRL" if cost is not None else None,
-        free_shipping_threshold_minor_units=int(threshold) if threshold is not None else None,
-    )
+    try:
+        return ShippingTerms(
+            known=True,
+            cost_minor_units=int(cost) if cost is not None else None,
+            cost_currency="BRL" if cost is not None else None,
+            free_shipping_threshold_minor_units=int(threshold) if threshold is not None else None,
+        )
+    except ValueError as exc:
+        raise ExtractionError("Offer contains invalid shipping terms") from exc
 
 
 def extract_listing(product: dict) -> ExtractedListing:
@@ -123,6 +129,7 @@ def extract_listing(product: dict) -> ExtractedListing:
 
     try:
         name = product["name"]
+        price = offer["price"]
         price_currency = offer["priceCurrency"]
         seller_name = seller["name"]
     except KeyError as exc:
@@ -133,7 +140,7 @@ def extract_listing(product: dict) -> ExtractedListing:
         gtin=product.get("gtin13") or product.get("gtin") or None,
         attributes=attributes,
         seller_display_name=seller_name,
-        price_amount=_parse_price(offer["price"]),
+        price_amount=_parse_price(price),
         currency=price_currency,
         availability=_AVAILABILITY_MAP.get(offer.get("availability", ""), Availability.UNKNOWN),
         condition=_CONDITION_MAP.get(offer.get("itemCondition", ""), Condition.UNKNOWN),
