@@ -1,0 +1,17 @@
+.git
+.github
+.codex/sessions
+.codex/metrics
+.venv
+.pytest_cache
+.ruff_cache
+__pycache__
+*.pyc
+*.pyo
+.coverage
+htmlcov
+frontend/node_modules
+frontend/dist
+.env
+.env.*
+!.env.example

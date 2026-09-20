@@ -214,7 +214,7 @@
     "stack": "Python (UV)",
     "commands": {
       "lint": "uv run ruff check .",
-      "typecheck": "uv run mypy .",
+      "typecheck": "uv run ty check .",
       "test_fast": "uv run pytest",
       "test_full": "uv run pytest",
       "build": "uv build",
