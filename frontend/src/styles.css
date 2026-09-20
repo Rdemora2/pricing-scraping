@@ -1029,6 +1029,35 @@ summary:focus-visible {
   border-bottom: 1px solid var(--line);
 }
 
+.source-empty {
+  display: grid;
+  gap: 10px;
+  padding: 24px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.source-empty strong {
+  color: var(--paper);
+}
+
+.source-empty span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.source-empty button {
+  width: fit-content;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--signal);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .source-number {
   color: #606876;
   font-family: ui-monospace, monospace;

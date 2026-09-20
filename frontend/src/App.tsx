@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { api } from "./api";
+import { ProductIntelligencePanel } from "./components/ProductIntelligencePanel";
+import { formatDate, formatMoney } from "./formatters";
 import type {
   CollectionRun,
   Comparison,
@@ -15,13 +17,6 @@ type View = "overview" | "catalog" | "sources" | "discovery";
 type IconName = "arrow" | "bolt" | "check" | "database" | "signal" | "grid" | "search" | "plus";
 
 const terminalStatuses = new Set<CollectionRun["status"]>(["succeeded", "failed", "partial"]);
-const currencyFormatter = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
-  day: "2-digit",
-  month: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-});
 const priorityVariantByProduct: Record<string, { storage: string; color: string }> = {
   "Apple iPhone 17": { storage: "256", color: "Preto" },
   "Apple iPhone 17 Pro": { storage: "256", color: "Prateado" },
@@ -64,25 +59,6 @@ function Icon({ name }: { name: IconName }) {
       {paths[name]}
     </svg>
   );
-}
-
-function formatMoney(value: string | null): string {
-  return value === null ? "—" : currencyFormatter.format(Number(value));
-}
-
-function formatDate(value: string | null): string {
-  return value === null ? "Sem coleta" : dateFormatter.format(new Date(value));
-}
-
-function formatStorage(value: number): string {
-  return value >= 1024 ? `${value / 1024} TB` : `${value} GB`;
-}
-
-function formatDelta(value: string | null): string {
-  if (value === null) return "Sem base comparável";
-  const numeric = Number(value);
-  const prefix = numeric > 0 ? "+" : "";
-  return `${prefix}${numeric.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
 }
 
 function variantLabel(variant: Variant): string {
@@ -280,163 +256,6 @@ function PriceRange({ comparison }: { comparison: Comparison }) {
   );
 }
 
-function ProductIntelligencePanel({
-  product,
-  intelligence,
-}: {
-  product: Product | null;
-  intelligence: ProductIntelligence | null;
-}) {
-  if (!product || !intelligence) return null;
-
-  const firstStorage = intelligence.storages_gb.at(0);
-  const lastStorage = intelligence.storages_gb.at(-1);
-  const storageRange =
-    firstStorage !== undefined && lastStorage !== undefined
-      ? `${formatStorage(firstStorage)} a ${formatStorage(lastStorage)}`
-      : "não informado";
-  const statusLabel = {
-    no_data: "Aguardando mercado",
-    limited: "Amostra limitada",
-    developing: "Cobertura em formação",
-    strong: "Amostra robusta",
-  }[intelligence.sample_status];
-
-  return (
-    <section className="model-intelligence" aria-labelledby="model-intelligence-title">
-      <div className="intelligence-lead">
-        <div>
-          <p className="eyebrow">Leitura executiva</p>
-          <h2 id="model-intelligence-title">{product.name}, explicado.</h2>
-          <p>
-            O catálogo acompanha {intelligence.storages_gb.length} capacidades, de {storageRange}, e{" "}
-            {intelligence.colors.length} cores: {intelligence.colors.join(", ") || "não informadas"}
-            . A inteligência usa apenas preços comparáveis da mesma variante.
-          </p>
-        </div>
-        <div
-          className="coverage-gauge"
-          role="progressbar"
-          aria-label="Cobertura das variantes"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={intelligence.coverage_pct}
-        >
-          <span>{intelligence.coverage_pct}%</span>
-          <small>{statusLabel}</small>
-          <div>
-            <i style={{ width: `${intelligence.coverage_pct}%` }} />
-          </div>
-          <p>
-            {intelligence.observed_variant_count}/{intelligence.catalog_variant_count} variantes ·{" "}
-            {intelligence.retailer_count} varejistas
-          </p>
-        </div>
-      </div>
-
-      <div className="intelligence-cards">
-        <article className="intelligence-card intelligence-card-signal">
-          <span>Melhor custo por capacidade</span>
-          <strong>
-            {intelligence.best_value_storage
-              ? formatStorage(intelligence.best_value_storage.storage_gb)
-              : "Em formação"}
-          </strong>
-          <p>
-            {intelligence.best_value_storage?.price_per_gb
-              ? `${formatMoney(intelligence.best_value_storage.price_per_gb)} por GB`
-              : "Precisamos observar ao menos duas capacidades."}
-          </p>
-        </article>
-        <article className="intelligence-card">
-          <span>Cor relativamente mais barata</span>
-          <strong>{intelligence.cheapest_color?.color ?? "Em formação"}</strong>
-          <p>
-            {intelligence.cheapest_color
-              ? `${formatDelta(intelligence.cheapest_color.relative_price_delta_pct)} contra a mediana das cores da mesma capacidade`
-              : "Sem combinações equivalentes suficientes."}
-          </p>
-        </article>
-        <article className="intelligence-card">
-          <span>Cor relativamente mais cara</span>
-          <strong>{intelligence.most_expensive_color?.color ?? "Em formação"}</strong>
-          <p>
-            {intelligence.most_expensive_color
-              ? `${formatDelta(intelligence.most_expensive_color.relative_price_delta_pct)} contra a mediana das cores da mesma capacidade`
-              : "Sem combinações equivalentes suficientes."}
-          </p>
-        </article>
-        <article className="intelligence-card">
-          <span>Faixa encontrada</span>
-          <strong>{formatMoney(intelligence.min_price)}</strong>
-          <p>
-            {intelligence.max_price
-              ? `até ${formatMoney(intelligence.max_price)} em ${intelligence.total_offer_count} ofertas comparáveis`
-              : "Nenhum preço comparável até agora."}
-          </p>
-        </article>
-      </div>
-
-      <div className="dimension-grid">
-        <section>
-          <div className="dimension-heading">
-            <h3>Inteligência por armazenamento</h3>
-            <span>mediana entre cores</span>
-          </div>
-          <div className="dimension-list">
-            {intelligence.storage_analysis.map((item) => (
-              <article key={item.storage_gb}>
-                <strong>{formatStorage(item.storage_gb)}</strong>
-                <div>
-                  <span>Preço representativo</span>
-                  <b>{formatMoney(item.representative_price)}</b>
-                </div>
-                <div>
-                  <span>Custo por GB</span>
-                  <b>{formatMoney(item.price_per_gb)}</b>
-                </div>
-                <small>
-                  {item.observed_variant_count}/{item.catalog_variant_count} cores observadas
-                </small>
-              </article>
-            ))}
-          </div>
-        </section>
-        <section>
-          <div className="dimension-heading">
-            <h3>Inteligência por cor</h3>
-            <span>normalizada por capacidade</span>
-          </div>
-          <div className="dimension-list">
-            {intelligence.color_analysis.map((item) => (
-              <article key={item.color}>
-                <strong>{item.color}</strong>
-                <div>
-                  <span>Índice relativo</span>
-                  <b>{formatDelta(item.relative_price_delta_pct)}</b>
-                </div>
-                <div>
-                  <span>Faixa observada</span>
-                  <b>{item.min_price ? `${formatMoney(item.min_price)}+` : "—"}</b>
-                </div>
-                <small>{item.comparable_storage_count} capacidades comparáveis</small>
-              </article>
-            ))}
-          </div>
-        </section>
-      </div>
-      <details className="methodology-panel">
-        <summary>Como calculamos estes insights</summary>
-        <ul>
-          {intelligence.methodology.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      </details>
-    </section>
-  );
-}
-
 type DiscoveryProps = {
   candidates: SourceCandidate[];
   query: string;
@@ -572,6 +391,7 @@ export function App() {
   const productSources = realSources
     .filter((source) => sourceAppliesToProduct(source, selectedProduct))
     .sort((left, right) => sourceDisplayRank(left) - sourceDisplayRank(right));
+  const hasProductSources = productSources.length > 0;
   const registrySources = sources
     .filter((item) => item.kind === "real" && item.status !== "disabled")
     .sort((left, right) => sourceDisplayRank(left) - sourceDisplayRank(right));
@@ -716,6 +536,12 @@ export function App() {
   );
 
   const collectAll = async () => {
+    if (!hasProductSources) {
+      setError(
+        "Este equipamento ainda não possui coletor homologado. Use o Radar web para qualificar novas fontes.",
+      );
+      return;
+    }
     try {
       await Promise.all(productSources.map((source) => collectSource(source.id)));
       if (selectedVariantId) await loadComparison(selectedVariantId);
@@ -802,7 +628,10 @@ export function App() {
     () => ({
       Apple: visibleProducts.filter((item) => item.brand === "Apple"),
       Samsung: visibleProducts.filter((item) => item.brand === "Samsung"),
-      Outros: visibleProducts.filter((item) => !["Apple", "Samsung"].includes(item.brand)),
+      Motorola: visibleProducts.filter((item) => item.brand === "Motorola"),
+      Outros: visibleProducts.filter(
+        (item) => !["Apple", "Samsung", "Motorola"].includes(item.brand),
+      ),
     }),
     [visibleProducts],
   );
@@ -926,9 +755,15 @@ export function App() {
                     className="primary-action"
                     type="button"
                     onClick={collectAll}
-                    disabled={collectionBusy}
+                    disabled={collectionBusy || !hasProductSources}
                   >
-                    <span>{collectionBusy ? "Coletando mercado" : "Atualizar mercado"}</span>
+                    <span>
+                      {collectionBusy
+                        ? "Coletando mercado"
+                        : hasProductSources
+                          ? "Atualizar mercado"
+                          : "Sem coletor ativo"}
+                    </span>
                     <Icon name={collectionBusy ? "bolt" : "arrow"} />
                   </button>
                 </div>
@@ -1018,6 +853,18 @@ export function App() {
                         </article>
                       );
                     })}
+                    {!hasProductSources ? (
+                      <div className="source-empty">
+                        <strong>Catálogo pronto, coleta em qualificação.</strong>
+                        <span>
+                          Este modelo está cadastrado com suas variantes oficiais, mas ainda não
+                          possui adapter habilitado.
+                        </span>
+                        <button type="button" onClick={() => setActiveView("discovery")}>
+                          Encontrar fontes
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                   <p className="lab-note">
                     Spiders dedicados, robots.txt, throttling, allowlist de destino e evidência
@@ -1120,17 +967,19 @@ export function App() {
                       <p className="eyebrow">Aguardando evidência</p>
                       <h2>Ainda sem amostra comparável.</h2>
                       <p>
-                        Execute a coleta ou abra o Radar para descobrir referências para este
-                        equipamento.
+                        {hasProductSources
+                          ? "Execute a coleta ou abra o Radar para descobrir novas referências para este equipamento."
+                          : "Abra o Radar para descobrir e qualificar referências para este equipamento."}
                       </p>
                       <div className="empty-actions">
                         <button
                           type="button"
                           className="secondary-action"
                           onClick={collectAll}
-                          disabled={collectionBusy}
+                          disabled={collectionBusy || !hasProductSources}
                         >
-                          Coletar fontes <Icon name="arrow" />
+                          {hasProductSources ? "Coletar fontes" : "Sem coletor ativo"}{" "}
+                          <Icon name="arrow" />
                         </button>
                         <button
                           type="button"
@@ -1264,8 +1113,8 @@ export function App() {
                   <p className="eyebrow">Qualidade e cobertura</p>
                   <h1>Fontes</h1>
                   <p>
-                    API oficial quando conectada; sem credencial, JSON-LD, DOM e browser headless
-                    como último recurso.
+                    Conectores de API comercial são opcionais e ainda não estão credenciados; hoje a
+                    coleta homologada usa JSON-LD, DOM e browser headless como último recurso.
                   </p>
                 </div>
                 <button
