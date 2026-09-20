@@ -2,7 +2,8 @@
 
 - Data: `2026-09-20`
 - Git root: `.`
-- Branch: `feature/increment-1-lab-pipeline`
+- Branch técnica revisada: `feature/increment-1-lab-pipeline`
+- Branch de entrega limpa: `feature/pricing-intelligence-portal`
 - Cápsula: `.codex/sessions/inc-04/TASK_CONTEXT.md`
 - Estado: `VERIFIED`
 - Risco: alto
@@ -44,7 +45,7 @@ de 6–8 é meta ainda não atingida e está documentado como próximo increment
 - `uv run pytest`: 60 testes passaram.
 - `npm run check && npm run build`: verde; JS `218.00 kB` (`67.72 kB` gzip) e
   CSS `21.53 kB` (`5.38 kB` gzip).
-- `docker compose config --quiet`: verde.
+- `POSTGRES_PASSWORD=ci-local-placeholder docker compose config --quiet`: verde.
 - `docker compose build`: todas as imagens construídas.
 - `docker compose run --rm --no-deps migrate`: migração idempotente e seed
   concluídos.
@@ -78,3 +79,20 @@ preservado e nunca deve ser removido como parte do rollback normal.
   TOCTOU e tags mutáveis herdadas nas imagens-base Python/PostgreSQL.
 - Fingerprint revisado:
   `9f0da36d9093c3c0a91fb7c33793ff7ba3c9755074ca5cc72cd61b0a8f6a9450`.
+
+## Entrega remota
+
+- O remoto estava vazio; o commit-base `0fdfb1f` foi publicado e `main` criada
+  apontando para o mesmo SHA antes de qualquer PR.
+- O PR `#1` foi encerrado como supersedido após o GitGuardian encontrar uma senha
+  local fixa em um commit histórico. O incidente não foi dispensado e a branch
+  publicada não foi reescrita.
+- O PR [#2](https://github.com/Rdemora2/pricing-scraping/pull/2) entregou o estado
+  final remediado a partir de `main`, com `POSTGRES_PASSWORD` obrigatório por
+  ambiente.
+- Checks no head `144414256d5790eeb23931c6e75be5ecd39aa012`: `governance` e
+  `GitGuardian Security Checks` concluíram com sucesso.
+- Merge squash concluído em `2026-09-20T10:04:35Z`, commit
+  `8b253f52d8ace6df1fc143576d6bca377dc39b3f`.
+- Readback remoto e `safe_git_sync.py sync-main` confirmaram `main` local e
+  `origin/main` no mesmo SHA, com worktree limpo.
