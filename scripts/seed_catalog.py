@@ -254,6 +254,90 @@ SOURCES = (
         status="enabled",
     ),
     SeedSource(
+        name="2aFinder — Apple iPhone 17",
+        base_url="https://2afinder.com/produto/iphone-iphone-17-2025-308835.md",
+        kind="real",
+        adapter_name="two_a_finder",
+        status="enabled",
+    ),
+    SeedSource(
+        name="2aFinder — Apple iPhone 17 Pro",
+        base_url="https://2afinder.com/produto/iphone-iphone-17-pro-2025-308767.md",
+        kind="real",
+        adapter_name="two_a_finder",
+        status="enabled",
+    ),
+    SeedSource(
+        name="2aFinder — Apple iPhone 17 Pro Max",
+        base_url="https://2afinder.com/produto/iphone-iphone-17-pro-max-2025.md",
+        kind="real",
+        adapter_name="two_a_finder",
+        status="enabled",
+    ),
+    SeedSource(
+        name="2aFinder — Samsung Galaxy S26",
+        base_url="https://2afinder.com/produto/galaxy-s-galaxy-s26-2026-985394.md",
+        kind="real",
+        adapter_name="two_a_finder",
+        status="enabled",
+    ),
+    SeedSource(
+        name="2aFinder — Samsung Galaxy S26+",
+        base_url="https://2afinder.com/produto/galaxy-s-galaxy-s26-2026-559881.md",
+        kind="real",
+        adapter_name="two_a_finder",
+        status="enabled",
+    ),
+    SeedSource(
+        name="2aFinder — Samsung Galaxy S26 Ultra",
+        base_url="https://2afinder.com/produto/galaxy-s-galaxy-s26-ultra-2026-154055.md",
+        kind="real",
+        adapter_name="two_a_finder",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Buscapé — Apple iPhone 17",
+        base_url="https://www.buscape.com.br/celular/celular-apple-iphone-17-256gb",
+        kind="real",
+        adapter_name="buscape",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Buscapé — Apple iPhone 17 Pro",
+        base_url="https://www.buscape.com.br/celular/celular-apple-iphone-17-pro-256gb",
+        kind="real",
+        adapter_name="buscape",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Buscapé — Apple iPhone 17 Pro Max",
+        base_url="https://www.buscape.com.br/celular/celular-apple-iphone-17-pro-max-256gb",
+        kind="real",
+        adapter_name="buscape",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Buscapé — Samsung Galaxy S26",
+        base_url="https://www.buscape.com.br/celular/celular-samsung-galaxy-s26-5g-256gb",
+        kind="real",
+        adapter_name="buscape",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Buscapé — Samsung Galaxy S26+",
+        base_url=("https://www.buscape.com.br/celular/celular-samsung-galaxy-s26-plus-5g-256gb"),
+        kind="real",
+        adapter_name="buscape",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Buscapé — Samsung Galaxy S26 Ultra",
+        base_url=("https://www.buscape.com.br/celular/celular-samsung-galaxy-s26-ultra-5g-256gb"),
+        kind="real",
+        adapter_name="buscape",
+        status="enabled",
+    ),
+    SeedSource(
         name="KaBuM! — Apple iPhone 17",
         base_url="https://www.kabum.com.br/produto/1016330/iphone-17-256gb-preto",
         kind="real",
@@ -413,6 +497,17 @@ async def seed() -> None:
             variant_count += await _seed_product(cur, product)
 
         for source in SOURCES:
+            # Source names are stable product/adapter identities. When a reviewed
+            # canonical URL changes, retire the previous target instead of
+            # leaving two enabled collectors after an idempotent reseed.
+            await cur.execute(
+                """
+                UPDATE source
+                SET status = 'disabled'
+                WHERE name = %(name)s AND base_url <> %(base_url)s
+                """,
+                {"name": source.name, "base_url": source.base_url},
+            )
             await cur.execute(
                 """
                 INSERT INTO source (name, base_url, kind, status, adapter_name)

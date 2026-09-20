@@ -1516,11 +1516,17 @@ footer {
 
   .nav-item {
     min-height: 50px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    padding: 4px 2px;
+    text-align: center;
   }
 
   .nav-item span {
     display: block;
     font-size: 0.55rem;
+    line-height: 1.1;
   }
 
   .platform-content {

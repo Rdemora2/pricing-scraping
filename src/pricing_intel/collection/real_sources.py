@@ -7,6 +7,7 @@ does not attempt to defeat access controls, CAPTCHA or browser challenges.
 from __future__ import annotations
 
 import html as html_module
+import json
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -131,7 +132,7 @@ def _catalog_identity(text: str) -> tuple[str, str, str]:
         return "samsung", "galaxy_s26_plus", "Samsung Galaxy S26+"
     if "galaxy s26" in normalized:
         return "samsung", "galaxy_s26", "Samsung Galaxy S26"
-    raise ExtractionError("Zoom product is outside the canonical device catalog")
+    raise ExtractionError("retail product is outside the canonical device catalog")
 
 
 def _storage_from_text(text: str) -> str:
@@ -168,6 +169,197 @@ def _color_from_text(text: str, *, model: str) -> str:
         if marker in folded:
             return canonical
     raise ExtractionError(f"retail offer is missing a supported color: {text!r}")
+
+
+def _external_id(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", value.casefold()).strip("-")
+
+
+def _brl_amount(value: str) -> Decimal:
+    normalized = value.replace("\xa0", " ").replace("R$", "").strip()
+    normalized = normalized.replace(".", "").replace(",", ".")
+    try:
+        amount = Decimal(normalized)
+    except InvalidOperation as exc:
+        raise ExtractionError(f"unparseable BRL price: {value!r}") from exc
+    if amount <= 0:
+        raise ExtractionError("retail price must be positive")
+    return amount
+
+
+class TwoAFinderMarkdownParser:
+    """Parse the public, robot-friendly offer table without following lead URLs."""
+
+    _title = re.compile(r"^#\s+(?P<title>.+?)\s*$", re.MULTILINE)
+    _active_offers = re.compile(
+        r"^Onde comprar .+?:\s+\d+\s+ofertas ativas\b",
+        re.IGNORECASE | re.MULTILINE,
+    )
+    _row = re.compile(
+        r"^\|\s*(?P<rank>\d+)\s*"
+        r"\|\s*(?P<price>R\$[^|]+?)\s*"
+        r"\|\s*(?P<channel>[^|]+?)\s*"
+        r"\|\s*(?P<seller>[^|]+?)\s*"
+        r"\|\s*(?P<condition>[^|]+?)\s*"
+        r"\|\s*(?P<freight>[^|]+?)\s*"
+        r"\|\s*(?P<variant>.*?)\s*"
+        r"\|\s*(?P<verified>\d{4}-\d{2}-\d{2}T[^|]+?)\s*"
+        r"\|\s*`(?P<offer_id>[0-9a-fA-F-]{36})`\s*"
+        r"\|\s*(?P<next_step>https://2afinder\.com/produto/[^|\s]+)\s*\|$",
+        re.MULTILINE,
+    )
+
+    def parse(self, page_markdown: str, page_url: str) -> list[RetailListing]:
+        title_match = self._title.search(page_markdown)
+        if title_match is None:
+            raise ExtractionError("2aFinder Markdown is missing the canonical product heading")
+        if self._active_offers.search(page_markdown) is None:
+            raise ExtractionError("2aFinder Markdown does not confirm active offers")
+        title = title_match.group("title").strip()
+        brand, model, _ = _catalog_identity(title)
+        attributes = {
+            "brand": brand,
+            "model": model,
+            "region": "br",
+            "storage_gb": _storage_from_text(title),
+            "color": _color_from_text(title, model=model),
+        }
+
+        listings: list[RetailListing] = []
+        for match in self._row.finditer(page_markdown):
+            if len(listings) >= MAX_AGGREGATE_OFFERS:
+                break
+            condition_text = match.group("condition").strip().casefold()
+            seller_name = match.group("seller").strip()
+            channel = match.group("channel").strip()
+            if not seller_name or not channel:
+                continue
+            listings.append(
+                RetailListing(
+                    external_listing_id=match.group("offer_id").lower(),
+                    # The public comparison document is the immutable audit
+                    # target. Affiliate/lead URLs are intentionally ignored.
+                    url=page_url,
+                    raw_title=title,
+                    gtin=None,
+                    attributes=attributes,
+                    seller_external_id=_external_id(f"{channel}-{seller_name}"),
+                    seller_display_name=f"{seller_name} · {channel}",
+                    price_amount=_brl_amount(match.group("price")),
+                    currency="BRL",
+                    availability=Availability.IN_STOCK,
+                    condition=Condition.NEW if condition_text == "novo" else Condition.UNKNOWN,
+                    payment_terms=PaymentTerms(price_basis=PriceBasis.ADVERTISED),
+                    shipping=self._shipping(match.group("freight")),
+                )
+            )
+        if not listings:
+            raise ExtractionError("no offers found in 2aFinder Markdown table")
+        return listings
+
+    @staticmethod
+    def _shipping(value: str) -> ShippingTerms:
+        normalized = value.strip().casefold()
+        if normalized in {"grátis", "gratis"}:
+            return ShippingTerms(known=True, cost_minor_units=0, cost_currency="BRL")
+        if normalized.startswith("r$"):
+            cost = _brl_amount(value)
+            return ShippingTerms(
+                known=True,
+                cost_minor_units=int(cost * 100),
+                cost_currency="BRL",
+            )
+        return ShippingTerms(known=False)
+
+
+class BuscapeOfferParser:
+    """Parse the bounded offer payload used by Buscapé's public product page."""
+
+    _product_id = re.compile(r'"prodId"\s*:\s*"?(?P<id>\d+)"?')
+
+    def product_id(self, page_html: str) -> str:
+        identifiers = {match.group("id") for match in self._product_id.finditer(page_html)}
+        if len(identifiers) != 1:
+            raise ExtractionError("Buscapé page does not expose one unambiguous product id")
+        return identifiers.pop()
+
+    def parse(self, payload_text: str, evidence_url: str) -> list[RetailListing]:
+        try:
+            payload = json.loads(payload_text)
+        except json.JSONDecodeError as exc:
+            raise ExtractionError("Buscapé offer response is not valid JSON") from exc
+        hits = payload.get("hits") if isinstance(payload, dict) else None
+        if not isinstance(hits, list):
+            raise ExtractionError("Buscapé offer response is missing hits")
+
+        listings: list[RetailListing] = []
+        for hit in hits[:MAX_AGGREGATE_OFFERS]:
+            if not isinstance(hit, dict):
+                continue
+            listing = self._listing(hit, evidence_url)
+            if listing is not None:
+                listings.append(listing)
+        if not listings:
+            raise ExtractionError("no canonical offers found in Buscapé response")
+        return listings
+
+    @staticmethod
+    def _listing(hit: dict, evidence_url: str) -> RetailListing | None:
+        title = str(hit.get("name") or "").strip()
+        seller = hit.get("seller")
+        sales_condition = hit.get("sales_condition")
+        if not title or not isinstance(seller, dict) or not isinstance(sales_condition, dict):
+            return None
+        seller_name = str(seller.get("name") or "").strip()
+        external_id = str(hit.get("offer_id") or "").strip()
+        if not seller_name or not external_id:
+            return None
+        try:
+            brand, model, _ = _catalog_identity(title)
+            storage = _storage_from_text(title)
+            color = _color_from_text(title, model=model)
+            price = Decimal(str(sales_condition.get("price")))
+        except ExtractionError, InvalidOperation, TypeError:
+            return None
+        if price <= 0:
+            return None
+
+        installments = sales_condition.get("installments")
+        installment_count = None
+        if isinstance(installments, list) and installments and isinstance(installments[0], dict):
+            raw_count = installments[0].get("amount_months")
+            if isinstance(raw_count, int) and raw_count > 0:
+                installment_count = raw_count
+        stock = sales_condition.get("stock")
+        if isinstance(stock, int) and not isinstance(stock, bool):
+            availability = Availability.IN_STOCK if stock > 0 else Availability.OUT_OF_STOCK
+        else:
+            availability = Availability.UNKNOWN
+        return RetailListing(
+            external_listing_id=external_id,
+            url=evidence_url,
+            raw_title=title,
+            gtin=None,
+            attributes={
+                "brand": brand,
+                "model": model,
+                "region": "br",
+                "storage_gb": storage,
+                "color": color,
+            },
+            seller_external_id=_external_id(f"{seller.get('id', '')}-{seller_name}"),
+            seller_display_name=seller_name,
+            price_amount=price,
+            currency="BRL",
+            availability=availability,
+            condition=(Condition.NEW if hit.get("condition") == "NEW" else Condition.UNKNOWN),
+            payment_terms=PaymentTerms(
+                installment_count=installment_count,
+                price_basis=PriceBasis.CASH,
+                condition_summary="preço à vista informado pelo comparador",
+            ),
+            shipping=ShippingTerms(known=False),
+        )
 
 
 def _commercial_text(value: object):

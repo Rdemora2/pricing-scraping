@@ -9,6 +9,7 @@ ferramenta ou documentação do produto; esta fila é o índice operacional loca
 | 2 | `INC-02` | Frontend React responsivo e acessível permite disparar coleta, acompanhar execução e consultar comparações reais da API | `.` | `INC-01` | `LOCAL_VERIFIED_WITH_EXTERNAL_GATE` |
 | 3 | `INC-03` | Fluxo completo local validado, documentação reconciliada e evidência/rollback registrados | `.` | `INC-02` | `LOCAL_VERIFIED_WITH_EXTERNAL_GATE` |
 | 4 | `INC-04` | Catálogo Apple/Samsung, fontes reais governadas, descoberta ampla, proteção de rede e portal responsivo separando mercado real do laboratório | `.` | — | `VERIFIED` |
+| 5 | `INC-05` | Cobertura real ampliada para piso de 6–8 varejistas distintos nas variantes prioritárias Apple/Samsung, com rastreabilidade, UX e evidência reproduzível | `.` | `INC-04` | `LOCAL_VERIFIED_WITH_EXTERNAL_GATE` |
 
 Fila vazia significa governança ainda não adotada; não invente unidades.
 

@@ -59,6 +59,8 @@ class PostgresPipeline:
         source_id = adapter["source_id"]
         run_id = adapter["run_id"]
         url = adapter["url"]
+        evidence_url = adapter.get("evidence_url", url)
+        evidence_canonical_url = adapter.get("evidence_canonical_url", adapter["canonical_url"])
         raw_html: str = adapter["raw_html"]
         content_hash = hashlib.sha256(raw_html.encode("utf-8")).hexdigest()
         now = datetime.now(UTC)
@@ -96,7 +98,7 @@ class PostgresPipeline:
             source_id=source_id,
             offer_id=offer.id,
             evidence_type=EvidenceType.LISTING_PAGE,
-            url=url,
+            url=evidence_url,
             http_status=adapter.get("http_status"),
             extractor_name=adapter.get("extractor_name", EXTRACTOR_NAME),
             extractor_version=adapter.get("extractor_version", EXTRACTOR_VERSION),
@@ -107,8 +109,8 @@ class PostgresPipeline:
 
         page = self.db.upsert_discovered_page(
             source_id=source_id,
-            url=url,
-            canonical_url=adapter["canonical_url"],
+            url=evidence_url,
+            canonical_url=evidence_canonical_url,
             page_type="product",
         )
         self.db.mark_page_status(page.id, DiscoveredPageStatus.COLLECTED.value)
