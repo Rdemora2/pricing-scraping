@@ -162,6 +162,31 @@ services:
     networks:
       - laboratory
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --quiet
+        - --spider
+        - http://127.0.0.1/
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    init: true
+    mem_limit: 128m
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:${FRONTEND_PORT:-3000}:80
+    networks:
+      - application
+
 volumes:
   postgres-data:
 
