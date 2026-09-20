@@ -52,6 +52,12 @@ async def get_variant(variant_id: UUID) -> Variant | None:
         return await cur.fetchone()
 
 
+async def list_products() -> list[Product]:
+    async with connection() as conn, conn.cursor(row_factory=class_row(Product)) as cur:
+        await cur.execute(sql.LIST_PRODUCTS)
+        return await cur.fetchall()
+
+
 async def get_product(product_id: UUID) -> Product | None:
     async with connection() as conn, conn.cursor(row_factory=class_row(Product)) as cur:
         await cur.execute(sql.GET_PRODUCT, {"product_id": product_id})

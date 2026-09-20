@@ -111,6 +111,12 @@ GET_VARIANT = """
     WHERE id = %(variant_id)s
 """
 
+LIST_PRODUCTS = """
+    SELECT id, name, brand, category, created_at
+    FROM product
+    ORDER BY name
+"""
+
 GET_PRODUCT = """
     SELECT id, name, brand, category, created_at
     FROM product
