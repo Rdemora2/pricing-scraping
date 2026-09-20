@@ -10,8 +10,11 @@ import html as html_module
 import json
 import re
 import unicodedata
+from contextlib import suppress
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+
+from parsel import Selector
 
 from pricing_intel.collection.extraction import (
     ExtractionError,
@@ -185,6 +188,200 @@ def _brl_amount(value: str) -> Decimal:
     if amount <= 0:
         raise ExtractionError("retail price must be positive")
     return amount
+
+
+def _plain_text(fragment: str) -> str:
+    """Collapse a small, already-bounded HTML fragment into visible text."""
+    without_tags = re.sub(r"<[^>]+>", " ", fragment)
+    return re.sub(r"\s+", " ", html_module.unescape(without_tags)).strip()
+
+
+def _canonical_attributes(title: str) -> dict[str, str]:
+    brand, model, _ = _catalog_identity(title)
+    return {
+        "brand": brand,
+        "model": model,
+        "region": "br",
+        "storage_gb": _storage_from_text(title),
+        "color": _color_from_text(title, model=model),
+    }
+
+
+def extract_amazon_listing(page_html: str, page_url: str) -> RetailListing:
+    """Extract Amazon's selected buy-box offer from its visible product page.
+
+    Amazon's Product JSON-LD can lag behind the rendered buy box. The adapter
+    therefore reads the scoped visible price, stock and merchant blocks and
+    fails closed when any of those commercial fields is absent.
+    """
+    selector = Selector(text=page_html)
+    title = " ".join(selector.css("#productTitle::text").getall()).strip()
+    price = (
+        selector.css("#corePrice_feature_div .apex-pricetopay-value .a-offscreen::text").get()
+        or selector.css("#corePrice_feature_div .a-offscreen::text").get()
+    )
+    seller_candidates = [
+        value.strip()
+        for value in selector.css(
+            '[offer-display-feature-name="desktop-merchant-info"] '
+            ".offer-display-feature-text-message::text"
+        ).getall()
+        if value.strip()
+    ]
+    seller_name = seller_candidates[0] if seller_candidates else ""
+    asin_match = re.search(r"/dp/(?P<asin>[A-Z0-9]{10})(?:[/?]|$)", page_url, re.IGNORECASE)
+    missing = [
+        field
+        for field, absent in (
+            ("title", not title),
+            ("price", price is None),
+            ("merchant", not seller_name),
+            ("asin", asin_match is None),
+        )
+        if absent
+    ]
+    if missing:
+        raise ExtractionError(
+            f"Amazon page is missing visible buy-box fields: {', '.join(missing)}"
+        )
+    assert price is not None and asin_match is not None
+
+    availability_text = " ".join(selector.css("#availability ::text").getall()).casefold()
+    visible_in_stock = any(
+        marker in availability_text for marker in ("em estoque", "disponível", "in stock")
+    )
+    add_to_cart_available = bool(selector.css('#add-to-cart-button, [name="submit.add-to-cart"]'))
+    product = next(iter_product_json_ld(page_html), None)
+    json_ld_in_stock = False
+    if product is not None:
+        with suppress(ExtractionError):
+            json_ld_in_stock = (
+                parse_availability(str(_offer(product).get("availability") or ""))
+                == Availability.IN_STOCK
+            )
+    if not visible_in_stock and not json_ld_in_stock and not add_to_cart_available:
+        raise ExtractionError("Amazon buy box does not confirm the item is in stock")
+
+    is_cash = bool(re.search(r"à vista no Pix(?: ou NuPay)?", page_html, re.IGNORECASE))
+    return RetailListing(
+        external_listing_id=asin_match.group("asin").upper(),
+        url=page_url,
+        raw_title=title,
+        gtin=None,
+        attributes=_canonical_attributes(title),
+        seller_external_id=_external_id(seller_name),
+        seller_display_name=seller_name,
+        price_amount=_brl_amount(price),
+        currency="BRL",
+        availability=Availability.IN_STOCK,
+        condition=Condition.NEW,
+        payment_terms=PaymentTerms(
+            price_basis=PriceBasis.CASH if is_cash else PriceBasis.ADVERTISED,
+            condition_summary="à vista via Pix ou NuPay" if is_cash else None,
+        ),
+        shipping=ShippingTerms(known=False),
+    )
+
+
+def extract_carrefour_listing(page_html: str, page_url: str) -> RetailListing:
+    """Extract Carrefour marketplace identity plus the visible Pix price."""
+    product = next(iter_product_json_ld(page_html), None)
+    if product is None:
+        raise ExtractionError("no Product JSON-LD found on Carrefour page")
+    offer = _offer(product)
+    title = html_module.unescape(str(product.get("name") or "")).strip()
+    sku = str(product.get("sku") or offer.get("sku") or "").strip()
+    price_match = re.search(
+        r"(?P<price>R\$\s*[\d.]+,\d{2})</span>.{0,600}?à vista no Pix",
+        page_html,
+        re.IGNORECASE | re.DOTALL,
+    )
+    seller_match = re.search(
+        r"Vendido\s+e\s+entregue\s+por(?:\s|<!--.*?-->)*"
+        r"<a\b[^>]*>(?P<seller>.*?)</a>",
+        page_html,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if not sku or price_match is None or seller_match is None:
+        raise ExtractionError("Carrefour page is missing SKU, Pix price or marketplace seller")
+    seller_name = _plain_text(seller_match.group("seller"))
+    if not seller_name:
+        raise ExtractionError("Carrefour page contains an empty marketplace seller")
+    availability = parse_availability(str(offer.get("availability") or ""))
+    condition = parse_condition(str(offer.get("itemCondition") or ""))
+    if availability == Availability.UNKNOWN or condition == Condition.UNKNOWN:
+        raise ExtractionError("Carrefour JSON-LD does not confirm stock and condition")
+    return RetailListing(
+        external_listing_id=sku,
+        url=page_url,
+        raw_title=title,
+        gtin=None,
+        attributes=_canonical_attributes(title),
+        seller_external_id=_external_id(seller_name),
+        seller_display_name=seller_name,
+        price_amount=_brl_amount(price_match.group("price")),
+        currency=str(offer.get("priceCurrency") or "BRL"),
+        availability=availability,
+        condition=condition,
+        payment_terms=PaymentTerms(
+            price_basis=PriceBasis.CASH,
+            condition_summary="à vista via Pix",
+        ),
+        shipping=ShippingTerms(known=False),
+    )
+
+
+def extract_americanas_listing(page_html: str, page_url: str) -> RetailListing:
+    """Extract the first positive, in-stock marketplace offer from Americanas."""
+    product = next(iter_product_json_ld(page_html), None)
+    if product is None:
+        raise ExtractionError("no Product JSON-LD found on Americanas page")
+    title = html_module.unescape(str(product.get("name") or "")).strip()
+    sku = str(product.get("sku") or "").strip()
+    offers = product.get("offers")
+    if not sku or not isinstance(offers, list):
+        raise ExtractionError("Americanas Product JSON-LD is missing SKU or offers")
+
+    selected_offer: dict | None = None
+    for candidate in offers[:MAX_AGGREGATE_OFFERS]:
+        if not isinstance(candidate, dict):
+            continue
+        seller_value = candidate.get("seller")
+        seller = seller_value if isinstance(seller_value, dict) else {}
+        try:
+            price = _price(candidate)
+        except ExtractionError:
+            continue
+        if (
+            price > 0
+            and parse_availability(str(candidate.get("availability") or ""))
+            == Availability.IN_STOCK
+            and str(seller.get("name") or "").strip()
+        ):
+            selected_offer = candidate
+            break
+    if selected_offer is None:
+        raise ExtractionError("Americanas page has no positive in-stock marketplace offer")
+
+    seller_value = selected_offer.get("seller")
+    seller = seller_value if isinstance(seller_value, dict) else {}
+    seller_name = str(seller.get("name") or "").strip()
+    return RetailListing(
+        external_listing_id=sku,
+        url=page_url,
+        raw_title=title,
+        gtin=None,
+        attributes=_canonical_attributes(title),
+        seller_external_id=_external_id(seller_name),
+        seller_display_name=seller_name,
+        price_amount=_price(selected_offer),
+        currency=str(selected_offer.get("priceCurrency") or "BRL"),
+        availability=Availability.IN_STOCK,
+        # The adapter is enabled only for the reviewed new-device product URL.
+        condition=Condition.NEW,
+        payment_terms=PaymentTerms(price_basis=PriceBasis.ADVERTISED),
+        shipping=ShippingTerms(known=False),
+    )
 
 
 class TwoAFinderMarkdownParser:

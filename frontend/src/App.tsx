@@ -15,7 +15,7 @@ const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
   minute: "2-digit",
 });
 const priorityVariantByProduct: Record<string, { storage: string; color: string }> = {
-  "Apple iPhone 17": { storage: "256", color: "Lavanda" },
+  "Apple iPhone 17": { storage: "256", color: "Preto" },
   "Apple iPhone 17 Pro": { storage: "256", color: "Prateado" },
   "Apple iPhone 17 Pro Max": { storage: "1024", color: "Prateado" },
   "Samsung Galaxy S26": { storage: "256", color: "Dourado" },
@@ -92,10 +92,21 @@ function runLabel(run: CollectionRun | undefined): string {
 
 function sourceState(source: Source): { label: string; tone: string } {
   if (source.status === "enabled") return { label: "Integrada", tone: "ready" };
+  if (["iplace", "magalu"].includes(source.adapter_name))
+    return { label: "Acesso direto bloqueado", tone: "blocked" };
   if (source.adapter_name === "catalog_reference")
     return { label: "Referência oficial", tone: "reference" };
   if (source.adapter_name.endsWith("_api")) return { label: "API oficial pendente", tone: "api" };
   return { label: "Em qualificação", tone: "candidate" };
+}
+
+const browserFallbackAdapters = new Set(["amazon", "americanas", "carrefour"]);
+
+function enabledSourceDescription(source: Source): string {
+  if (browserFallbackAdapters.has(source.adapter_name)) {
+    return "HTTP estruturado primeiro; Chromium headless somente se JSON-LD e DOM forem insuficientes.";
+  }
+  return "Coleta HTTP com JSON-LD prioritário, adapter dedicado e controles de rede.";
 }
 
 function sourceAppliesToProduct(source: Source, product: Product | null): boolean {
@@ -106,12 +117,25 @@ function sourceAppliesToProduct(source: Source, product: Product | null): boolea
   if (source.adapter_name === "samsung_shop")
     return source.name === `Samsung Shop — ${product.name.replace("Samsung ", "")}`;
   if (source.adapter_name === "iplace") return product.name === "Apple iPhone 17";
+  if (["amazon", "americanas", "carrefour"].includes(source.adapter_name))
+    return product.name === "Apple iPhone 17";
   if (source.adapter_name === "fast_shop")
     return source.name === "Fast Shop"
       ? product.name === "Apple iPhone 17"
       : source.name === `Fast Shop — ${product.name}`;
   if (source.adapter_name === "kabum") return source.name === `KaBuM! — ${product.name}`;
   return true;
+}
+
+function sourceDisplayRank(source: Source): number {
+  const ranks: Record<string, number> = {
+    amazon: 0,
+    americanas: 1,
+    carrefour: 2,
+    iplace: 3,
+    magalu: 4,
+  };
+  return ranks[source.adapter_name] ?? 10;
 }
 
 function LandingPage({ onEnter }: { onEnter: () => void }) {
@@ -368,10 +392,12 @@ export function App() {
     [products],
   );
   const realSources = sources.filter((item) => item.kind === "real" && item.status === "enabled");
-  const productSources = realSources.filter((source) =>
-    sourceAppliesToProduct(source, selectedProduct),
-  );
-  const registrySources = sources.filter((item) => item.kind === "real");
+  const productSources = realSources
+    .filter((source) => sourceAppliesToProduct(source, selectedProduct))
+    .sort((left, right) => sourceDisplayRank(left) - sourceDisplayRank(right));
+  const registrySources = sources
+    .filter((item) => item.kind === "real" && item.status !== "disabled")
+    .sort((left, right) => sourceDisplayRank(left) - sourceDisplayRank(right));
   const collectionBusy = busySourceIds.length > 0;
 
   const enterPlatform = () => {
@@ -1043,7 +1069,10 @@ export function App() {
                 <div>
                   <p className="eyebrow">Qualidade e cobertura</p>
                   <h1>Fontes</h1>
-                  <p>Integrações ativas, referências oficiais e próximas fontes em qualificação.</p>
+                  <p>
+                    API oficial quando conectada; sem credencial, JSON-LD, DOM e browser headless
+                    como último recurso.
+                  </p>
                 </div>
                 <button
                   className="primary-action"
@@ -1104,10 +1133,12 @@ export function App() {
                         {source.adapter_name === "catalog_reference"
                           ? "Sustenta catálogo, especificações e identidade do produto."
                           : source.status === "enabled"
-                            ? "Coleta HTML/JSON-LD com adapter dedicado e controles de rede."
-                            : source.adapter_name.endsWith("_api")
-                              ? "Canal oficial mapeado; requer credenciais e homologação."
-                              : "Domínio reconhecido aguardando avaliação de acesso e adapter."}
+                            ? enabledSourceDescription(source)
+                            : ["iplace", "magalu"].includes(source.adapter_name)
+                              ? "URL real qualificada, mas o acesso direto do coletor recebe HTTP 403. Sem contorno de bloqueio."
+                              : source.adapter_name.endsWith("_api")
+                                ? "Canal oficial mapeado; requer credenciais e homologação."
+                                : "Domínio reconhecido aguardando avaliação de acesso e adapter."}
                       </p>
                       <a href={source.base_url} target="_blank" rel="noreferrer noopener">
                         Abrir fonte <Icon name="arrow" />

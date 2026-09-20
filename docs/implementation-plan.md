@@ -60,12 +60,26 @@ Entregue:
 - URL comercial e documento efetivamente extraído persistidos separadamente para
   reprodução da evidência.
 
+### Incremento 6 — diversidade direta do caso iPhone 17
+
+Entregue:
+
+- adapters dedicados e estritos para Amazon, Americanas e Carrefour;
+- preço visível do buy box/Pix com variante, estoque e vendedor preservados;
+- ofertas Magalu e iPlace comprovadas via marketplaces, sem confundir vendedor
+  com canal de evidência;
+- waterfall de aquisição com API opcional, JSON-LD/DOM por HTTP e Chromium
+  headless somente como fallback limitado e auditável;
+- fontes diretas bloqueadas visíveis no portal, sem contorno de HTTP 403;
+- iPhone 17 256 GB Preto como variante inicial, com seis varejistas e seis canais
+  na coleta de referência.
+
 Próximos passos:
 
 - superar o bloqueio externo de oferta do Galaxy S26 Dourado, hoje em cinco
   vendedores exatos, sem duplicar a Samsung ou misturar variantes;
-- revisar adaptadores diretos para Magalu, Casas Bahia, Ponto e integrações
-  oficiais disponíveis;
+- revisar acesso direto futuro para Magalu/iPlace e adaptadores para Casas Bahia,
+  Ponto e integrações oficiais disponíveis;
 - criar visão de cobertura por família, variante e fonte, com SLO de frescor;
 - adicionar fixtures capturadas/sanitizadas por adaptador para regressão de markup;
 - série temporal e mudança efetiva versus verificação recente;

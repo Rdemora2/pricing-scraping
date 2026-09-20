@@ -9,6 +9,9 @@ from pricing_intel.collection.real_sources import (
     MAX_AGGREGATE_OFFERS,
     BuscapeOfferParser,
     TwoAFinderMarkdownParser,
+    extract_amazon_listing,
+    extract_americanas_listing,
+    extract_carrefour_listing,
     extract_fast_shop_listing,
     extract_iplace_listings,
     extract_kabum_listing,
@@ -29,6 +32,137 @@ def test_iter_product_json_ld_flattens_arrays_and_graphs() -> None:
     payload = [{"@graph": [{"@type": "BreadcrumbList"}, {"@type": "Product", "sku": "1"}]}]
 
     assert [item["sku"] for item in iter_product_json_ld(_html(payload))] == ["1"]
+
+
+def test_amazon_prefers_visible_buy_box_over_stale_json_ld() -> None:
+    page = (
+        _html(
+            {
+                "@type": "Product",
+                "name": "Apple iPhone 17 de 256 GB — Preto",
+                "offers": {"@type": "Offer", "price": "6220.10", "priceCurrency": "BRL"},
+            }
+        )
+        + """
+        <h1><span id="productTitle"> Apple iPhone 17 de 256 GB — Preto </span></h1>
+        <div id="corePrice_feature_div">
+          <span class="a-price apex-pricetopay-value">
+            <span class="a-offscreen">R$5.698,99</span>
+          </span>
+          <span>à vista no Pix ou NuPay</span>
+        </div>
+        <div id="availability"><span>Em estoque</span></div>
+        <div offer-display-feature-name="desktop-merchant-info">
+          <span class="a-size-small offer-display-feature-text-message">Amazon.com.br</span>
+        </div>
+    """
+    )
+
+    listing = extract_amazon_listing(
+        page,
+        "https://www.amazon.com.br/Apple-iPhone-17-256-GB/dp/B0GQW2J4SK",
+    )
+
+    assert listing.external_listing_id == "B0GQW2J4SK"
+    assert listing.price_amount == Decimal("5698.99")
+    assert listing.seller_display_name == "Amazon.com.br"
+    assert listing.attributes["storage_gb"] == "256"
+    assert listing.attributes["color"] == "Preto"
+    assert listing.payment_terms.price_basis.value == "cash"
+
+
+def test_amazon_accepts_visible_core_price_without_apex_class() -> None:
+    page = """
+        <h1><span id="productTitle">Apple iPhone 17 de 256 GB — Preto</span></h1>
+        <div id="corePrice_feature_div">
+          <span class="a-offscreen">R$6.220,10</span>
+        </div>
+        <div id="availability"><span>Em estoque</span></div>
+        <div offer-display-feature-name="desktop-merchant-info">
+          <span class="offer-display-feature-text-message">Amazon.com.br</span>
+        </div>
+    """
+
+    listing = extract_amazon_listing(
+        page,
+        "https://www.amazon.com.br/Apple-iPhone-17-256-GB/dp/B0GQW2J4SK",
+    )
+
+    assert listing.price_amount == Decimal("6220.10")
+    assert listing.payment_terms.price_basis.value == "advertised"
+
+
+@pytest.mark.parametrize(
+    ("seller", "sku", "price"),
+    [
+        ("mcs variedades", "337104577", "5669.10"),
+        ("loja iplace", "340005163", "6029.10"),
+    ],
+)
+def test_carrefour_uses_visible_pix_price_and_marketplace_seller(
+    seller: str, sku: str, price: str
+) -> None:
+    payload = {
+        "@type": "Product",
+        "name": "Apple iPhone 17 256GB Preto 6,3 polegadas 48MP iOS 5G",
+        "sku": sku,
+        "offers": {
+            "@type": "Offer",
+            "price": "6299.00",
+            "priceCurrency": "BRL",
+            "availability": "http://schema.org/InStock",
+            "itemCondition": "http://schema.org/NewCondition",
+        },
+    }
+    # Render the expected Brazilian value explicitly; the JSON-LD list price
+    # above must not override the scoped Pix price.
+    formatted_price = "R$ 5.669,10" if price == "5669.10" else "R$ 6.029,10"
+    page = (
+        _html(payload)
+        + f"<span>{formatted_price}</span><span>à vista no Pix</span>"
+        + f'Vendido e entregue por<!-- --> <a href="/parceiro">{seller}</a>'
+    )
+
+    listing = extract_carrefour_listing(
+        page,
+        f"https://www.carrefour.com.br/produto/iphone-17-{sku}",
+    )
+
+    assert listing.price_amount == Decimal(price)
+    assert listing.seller_display_name == seller
+    assert listing.external_listing_id == sku
+    assert listing.payment_terms.price_basis.value == "cash"
+
+
+def test_americanas_selects_positive_in_stock_marketplace_offer() -> None:
+    payload = {
+        "@type": "Product",
+        "name": "Apple iPhone 17 256GB Preto 6,3 polegadas 48MP iOS 5G",
+        "sku": "8841126",
+        "offers": [
+            {
+                "@type": "Offer",
+                "price": "5799",
+                "priceCurrency": "BRL",
+                "availability": "https://schema.org/InStock",
+                "seller": {"@type": "Organization", "name": "magazineluiza"},
+            },
+            {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "BRL",
+                "availability": "https://schema.org/OutOfStock",
+                "seller": {"@type": "Organization", "name": "1"},
+            },
+        ],
+    }
+
+    listing = extract_americanas_listing(_html(payload), "https://www.americanas.com.br/item/p")
+
+    assert listing.external_listing_id == "8841126"
+    assert listing.price_amount == Decimal("5799")
+    assert listing.seller_display_name == "magazineluiza"
+    assert listing.condition == Condition.NEW
 
 
 def test_iplace_extracts_multiple_real_variants() -> None:

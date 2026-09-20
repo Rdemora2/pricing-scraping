@@ -49,6 +49,33 @@ são expostos no host.
 | `migrate` | Alembic, schema Procrastinate e seed idempotente | job one-shot |
 | `lab-store-a`, `lab-store-b` | páginas HTTP sintéticas realmente coletadas | rede interna do Compose |
 
+## Estratégia de aquisição
+
+Cada adaptador segue um waterfall explícito, sem exigir que uma integração
+comercial esteja conectada:
+
+1. **API oficial opcional**: quando a loja oferece a integração e suas
+   credenciais estão configuradas, ela é a primeira opção. A ausência da
+   conexão não interrompe a coleta.
+2. **HTTP + JSON-LD**: o scraper busca primeiro `Product`, `ProductGroup` e
+   `Offer`, preservando SKU, vendedor, disponibilidade e condição.
+3. **HTML/DOM**: seletores específicos completam ou substituem campos que não
+   estão estruturados, como o buy box visível ou o preço Pix.
+4. **Chromium headless**: somente Amazon, Americanas e Carrefour estão
+   autorizadas a usá-lo quando a resposta HTTP não contém evidência suficiente.
+
+O fallback de navegador não resolve CAPTCHA, não autentica e não contorna HTTP
+403. Ele bloqueia imagens, mídia, fontes e hosts não revisados; sua origem fica
+registrada no nome versionado do extrator. No Docker, apenas o `worker` carrega o
+runtime Chromium — API e migração continuam na imagem Python enxuta. O worker
+executa sem root e sem capabilities, com `no-new-privileges`, raiz somente
+leitura e `/tmp` isolado.
+
+Nesta entrega, nenhuma API comercial está credenciada: as fontes habilitadas
+entram diretamente no passo 2. Respostas de controle de acesso não acionam o
+browser; ele só é elegível após uma resposta HTTP permitida cuja evidência ainda
+seja insuficiente.
+
 ## Comandos de desenvolvimento
 
 Backend:
@@ -118,6 +145,10 @@ S26, S26+ e S26 Ultra, com capacidades e cores oficiais. Fontes habilitadas:
   variante, timestamp e identificador de oferta;
 - Buscapé, pela página pública e pelo documento de ofertas que ela própria
   consome, sem seguir redirecionamentos comerciais;
+- Amazon Brasil, pelo buy box visível da página de produto;
+- Americanas, preservando o vendedor efetivo publicado no marketplace;
+- Carrefour, preservando vendedor e preço à vista no Pix — inclusive ofertas
+  de MCS Variedades e Loja iPlace;
 - duas lojas sintéticas isoladas, usadas somente para regressão do pipeline.
 
 A meta de produto é atingir **no mínimo 6–8 varejistas distintos por aparelho e
@@ -127,7 +158,9 @@ site direto e em comparador conta uma vez; aliases conhecidos, como Magalu e
 Magazine Luiza, também são consolidados. Em uma coleta real de referência em
 `2026-09-20`, as variantes prioritárias observaram `9/11/9/5/6/6` varejistas
 para iPhone 17/Pro/Pro Max e Galaxy S26/S26+/Ultra, respectivamente. Cinco das
-seis famílias atingem o piso. O Galaxy S26 base Dourado permanece em cinco: a
+seis famílias atingem o piso. Além dessa matriz, o iPhone 17 256 GB Preto abre
+como variante principal com `6` varejistas em `6` canais após a inclusão direta
+de Amazon, Americanas e Carrefour. O Galaxy S26 base Dourado permanece em cinco: a
 própria Samsung classifica Dourado/Prata como cores exclusivas da loja oficial, e
 a coleta pública atual não expõe um sexto vendedor novo, disponível e exato sem
 duplicar a Samsung ou misturar variante.
@@ -160,14 +193,15 @@ preservar histórico de coletas.
   observada; a limitação externa de oferta está registrada em
   `docs/ai/delivery/evidence/INC-05.md`, e ampliar fontes diretas continua
   necessário para fechar o piso sem contar aliases ou misturar variantes;
-- iPlace está integrado, mas permanece candidato porque respondeu HTTP 403 ao
-  user-agent declarado do coletor durante a validação;
+- iPlace e Magalu permanecem candidatos diretos porque suas páginas responderam
+  HTTP 403 ao user-agent declarado do coletor. Ofertas desses vendedores podem
+  aparecer quando Americanas ou Carrefour as publicam com variante e preço
+  verificáveis;
 - Apple Brasil é referência canônica, não fonte automatizada; seus termos vedam
   automação da página;
-- Mercado Livre e Amazon exigem credenciais de APIs oficiais para integrações
-  próprias; suas ofertas só entram quando um comparador público declara vendedor,
-  variante e condição suficientes. Casas Bahia, Ponto e Magalu permanecem
-  candidatos a adaptadores diretos dedicados;
+- Mercado Livre ainda exige homologação de sua integração oficial. Sem essa
+  conexão, o sistema continua operando com os scrapers habilitados; Casas Bahia
+  e Ponto permanecem candidatos a adaptadores diretos dedicados;
 - candidatos da busca ampla exigem revisão humana e adaptador dedicado antes de
   qualquer coleta;
 - a API não possui autenticação e deve permanecer restrita ao loopback;

@@ -154,6 +154,39 @@ PRODUCTS = (
 
 SOURCES = (
     SeedSource(
+        name="Amazon Brasil",
+        base_url="https://www.amazon.com.br/Apple-iPhone-17-256-GB/dp/B0GQW2J4SK",
+        kind="real",
+        adapter_name="amazon",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Americanas — Apple iPhone 17",
+        base_url=(
+            "https://www.americanas.com.br/apple-iphone-17-256gb-preto-63--48mp-ios-5g-8362388/p"
+        ),
+        kind="real",
+        adapter_name="americanas",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Carrefour — Apple iPhone 17 (MCS Variedades)",
+        base_url=("https://www.carrefour.com.br/produto/apple-iphone-gb-preto-mp-ios-g-337104577"),
+        kind="real",
+        adapter_name="carrefour",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Carrefour — Apple iPhone 17 (Loja iPlace)",
+        base_url=(
+            "https://www.carrefour.com.br/produto/"
+            "apple-iphone-17-256gb-preto-63-48mp-ios-5g-340005163"
+        ),
+        kind="real",
+        adapter_name="carrefour",
+        status="enabled",
+    ),
+    SeedSource(
         name="iPlace",
         base_url="https://www.iplace.com.br/iphone-17-256gb-lavanda/100740PR",
         kind="real",
@@ -428,12 +461,6 @@ SOURCES = (
         adapter_name="mercado_livre_api",
     ),
     SeedSource(
-        name="Amazon Brasil",
-        base_url="https://www.amazon.com.br/",
-        kind="real",
-        adapter_name="amazon_creators_api",
-    ),
-    SeedSource(
         name="Casas Bahia",
         base_url="https://www.casasbahia.com.br/",
         kind="real",
@@ -447,9 +474,16 @@ SOURCES = (
     ),
     SeedSource(
         name="Magalu",
-        base_url="https://www.magazineluiza.com.br/",
+        base_url=(
+            "https://www.magazineluiza.com.br/"
+            "apple-iphone-17-256gb-preto-63-48mp-ios-5g/p/241268000/te/ip17/"
+        ),
         kind="real",
-        adapter_name="pending_adapter",
+        adapter_name="magalu",
+        # The exact page returns HTTP 403 to the declared collector. It stays
+        # visible as a qualified candidate; Magalu offers may still be
+        # observed through public marketplace evidence such as Americanas.
+        status="candidate",
     ),
 )
 

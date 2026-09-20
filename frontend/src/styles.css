@@ -471,6 +471,13 @@ summary:focus-visible {
   gap: 10px;
 }
 
+.registry-card small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .registry-card > strong {
   margin-top: 34px;
   font-size: 1.2rem;
@@ -515,6 +522,11 @@ summary:focus-visible {
 .state-api {
   background: rgba(255, 195, 105, 0.1);
   color: #ffc369;
+}
+
+.state-blocked {
+  background: rgba(255, 116, 92, 0.12);
+  color: #ff8e7a;
 }
 
 .radar-stats {

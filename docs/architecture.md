@@ -13,6 +13,7 @@ Browser -> Nginx/React -> FastAPI -> PostgreSQL
                                                 -> Fast Shop / Samsung Shop
                                                 -> KaBuM! / Zoom
                                                 -> 2aFinder / Buscapé
+                                                -> Amazon / Americanas / Carrefour
                                                 -> lab-store-a / lab-store-b
                                                 -> PostgreSQL
 ```
@@ -35,13 +36,18 @@ RabbitMQ e serviços cloud não são necessários no volume do MVP.
 1. `POST /sources/{id}/collect` verifica que a fonte está habilitada.
 2. Uma chave `source + minuto` converge cliques repetidos no mesmo run.
 3. O job persistido move o run de `pending` para `running`.
-4. Scrapy visita somente a página revisada e limitada daquela fonte.
-5. O extrator específico valida JSON-LD, separa vendedor, oferta, termos e
-   variante; marketplaces preservam o vendedor efetivo.
-6. A observação e sua evidência são persistidas; replay do mesmo run não duplica
+4. O adaptador usa API oficial quando houver integração configurada; sem ela,
+   Scrapy visita somente a página revisada e limitada daquela fonte.
+5. A coleta HTTP prioriza JSON-LD e usa seletores DOM específicos para campos
+   ausentes. Amazon, Americanas e Carrefour podem repetir essa extração em
+   Chromium headless como último recurso quando a primeira resposta for
+   insuficiente; a evidência identifica esse fallback no extrator.
+6. O extrator separa vendedor, oferta, termos e variante; marketplaces preservam
+   o vendedor efetivo.
+7. A observação e sua evidência são persistidas; replay do mesmo run não duplica
    a observação.
-7. O run termina em `succeeded`, `partial` ou `failed`.
-8. A consulta usa somente a observação mais recente por oferta ativa e uma
+8. O run termina em `succeeded`, `partial` ou `failed`.
+9. A consulta usa somente a observação mais recente por oferta ativa e uma
    observação por varejista; evidência direta precede uma cópia agregada.
 
 A descoberta ampla é um fluxo paralelo: a API consulta um provedor oficial de
@@ -61,8 +67,9 @@ Nenhum candidato é promovido automaticamente a `source`.
 
 ## Estratégia de fontes
 
-- **direta**: Fast Shop, Samsung Shop e KaBuM! fornecem a página que sustenta o
-  preço; têm precedência na deduplicação;
+- **direta**: Fast Shop, Samsung Shop, KaBuM!, Amazon, Americanas e Carrefour
+  fornecem a página que sustenta o preço; têm precedência na deduplicação. Em
+  marketplaces, o canal e o vendedor efetivo permanecem identidades separadas;
 - **agregadora**: Zoom, 2aFinder e Buscapé adicionam amplitude, mas cada oferta é
   atribuída ao vendedor publicado e não ao comparador. Lead/afiliado nunca é
   seguido; a evidência permanece na página ou documento público de comparação;
@@ -96,6 +103,18 @@ tempo, concorrência e páginas. Extratores aceitam no máximo 24 variantes ou 2
 ofertas agregadas por página, limitando também a multiplicação de evidências. O
 laboratório opta explicitamente por HTTP e rede privada. CAPTCHA, login e bloqueios
 não são contornados.
+
+O browser é opt-in por request e roda com um único contexto e uma página por
+worker. Sua política própria bloqueia recursos visuais e qualquer subrequest fora
+da allowlist HTTPS da fonte; os hosts auxiliares também passam por pré-validação
+DNS pública, porque tráfego do Playwright não atravessa os
+middlewares do downloader Scrapy. O sandbox de namespace interno do Chromium é
+desabilitado no container; a fronteira externa compensa isso com usuário não-root,
+capabilities removidas, `no-new-privileges`, limite de processos, raiz somente
+leitura e `/tmp` efêmero. API, migração e frontend não carregam Chromium.
+HTTP 401, 403, 429, bloqueio por `robots.txt` e falhas de transporte não são
+convertidos em navegação headless; o fallback nasce somente de uma resposta
+permitida que não forneceu os campos comerciais exigidos.
 
 A validação DNS anterior ao request reduz SSRF, mas não elimina completamente
 DNS rebinding entre validação e conexão; execução local, allowlist exata e ausência

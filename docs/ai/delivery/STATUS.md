@@ -2,16 +2,16 @@
 
 **Atualizado em:** `2026-09-20`
 **Estado global:** `LOCAL_VERIFIED_WITH_EXTERNAL_GATE`
-**Unidade ativa:** `—`
+**Unidade ativa:** `INC-06` — revisão independente externa pendente
 
 O roadmap conclui o laboratório e avança o portal local de inteligência de
 preços com fontes reais. A entrega permanece limitada ao ambiente local; não
 inclui deploy ou cloud.
 
-Código, 60 testes, análise estática, imagens, migração, coleta real e browser
-desktop/mobile estão verdes. A stack Compose preexistente foi observada saudável;
-as imagens novas foram validadas por build e containers one-shot porque a política
-local não permitiu recriar todo o conjunto.
+Código, 85 testes, análise estática, pacote, imagens, coleta real, Chromium no
+worker e browser desktop/mobile estão verdes. API, worker e frontend foram
+reconstruídos; smokes one-shot provaram o runtime headless e a coleta Amazon com
+proveniência de fallback.
 
 O `INC-04` inclui 76 variantes Apple/Samsung, Fast Shop, Samsung Shop, KaBuM! e
 Zoom, descoberta ampla governada e portal completo. O `INC-05` adiciona 2aFinder
@@ -20,10 +20,22 @@ variantes prioritárias. Cinco famílias atingem o piso; o Galaxy S26 Dourado
 permanece sob gate externo exato de oferta. O laboratório continua isolado das
 métricas reais.
 
+O `INC-06` adiciona Amazon, Americanas e duas ofertas Carrefour ao caso iPhone 17
+256 GB Preto, que passa a seis varejistas em seis canais. A aquisição documenta
+API oficial opcional e, sem conexão, segue por JSON-LD/DOM HTTP; somente resposta
+permitida e insuficiente pode acionar Chromium. Respostas de controle de acesso
+não acionam browser.
+
 O reviewer independente aprovou localmente o ciclo 2 do INC-05 no fingerprint
 `fadb3ec6d99b17b80386d1296655a3ef65be8f3523e59bd2760133dcb64d0b75`, sem
 achados remanescentes. Permanecem os riscos documentados de mudança externa de
 markup/oferta, DNS TOCTOU e tags mutáveis das imagens-base.
+
+A revisão local funcional e de segurança do INC-06 corrigiu escopo de preço,
+identidade duplicada de seller, resposta HTTP não textual, pré-validação DNS e
+origem da dependência Playwright. O runtime desta tarefa proíbe delegar um novo
+revisor; portanto esse parecer não é registrado como independente e o merge
+permanece sob gate externo.
 
 ## Estados normativos
 

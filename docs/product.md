@@ -20,14 +20,18 @@ comparação?".
 ## Escopo entregue
 
 - catálogo com 76 variantes de iPhone 17/Pro/Pro Max e Galaxy S26/S26+/Ultra;
-- adaptadores reais para Fast Shop, Samsung Shop, KaBuM!, Zoom, 2aFinder e
-  Buscapé, com evidência, vendedor efetivo e atualização manual;
-- integração iPlace mantida como candidata enquanto o acesso automatizado
-  declarado responder HTTP 403;
+- adaptadores reais para Fast Shop, Samsung Shop, KaBuM!, Zoom, 2aFinder,
+  Buscapé, Amazon, Americanas e Carrefour, com evidência, vendedor efetivo e
+  atualização manual;
+- integrações diretas iPlace e Magalu mantidas como candidatas enquanto o acesso
+  automatizado declarado responder HTTP 403; ofertas desses vendedores ainda
+  podem ser comprovadas por marketplaces públicos;
 - radar opcional de referências na web, com confiança e revisão antes de coleta;
 - duas fontes HTTP com markup diferente, paginação e múltiplos vendedores;
 - coleta manual assíncrona e idempotente;
 - extração JSON-LD validada e evidência com hash/versão do extrator;
+- waterfall de aquisição com API oficial opcional, HTTP/JSON-LD, DOM e Chromium
+  headless limitado como último recurso para fontes JavaScript revisadas;
 - matching determinístico por GTIN e, quando o GTIN está ausente, atributos;
 - comparação de preço atual com mínimo, mediana, máximo e exclusões;
 - painel para iniciar coletas, acompanhar fontes e explorar variantes.
@@ -66,9 +70,12 @@ na configuração Dourado, exclusiva da loja oficial segundo a Samsung, porque
 aliases do fabricante são consolidados e variantes incompatíveis não são
 misturadas para completar artificialmente o número.
 
+Para o caso focal do iPhone 17 256 GB Preto, a coleta de referência do mesmo dia
+atingiu `6` varejistas em `6` canais, incluindo Amazon, Carrefour e Americanas.
+
 ## Fora do escopo atual
 
-- navegador automatizado, CAPTCHA, paywall ou autenticação de lojas;
+- resolução de CAPTCHA, contorno de bloqueio, paywall ou autenticação de lojas;
 - recomendação/alteração automática de preços;
 - inferência de vendas, demanda, elasticidade ou preço ótimo;
 - custos, margens, integrações comerciais, multi-tenancy ou cloud;
