@@ -2,7 +2,7 @@
 
 **Atualizado em:** `2026-09-20`
 **Estado global:** `LOCAL_VERIFIED_WITH_EXTERNAL_GATE`
-**Unidade ativa:** `INC-08` — validação local concluída; revisão independente pendente
+**Unidade ativa:** `INC-08` — PR #8 verde; revisão independente pendente
 
 O roadmap conclui o laboratório e avança o portal local de inteligência de
 preços com fontes reais. A entrega permanece limitada ao ambiente local; não

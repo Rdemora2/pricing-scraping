@@ -78,6 +78,14 @@ acessibilidade encontrados nesta auditoria foram corrigidos. Este parecer não �
 independente; a revisão independente obrigatória permanece como gate externo
 antes de merge.
 
+## Entrega remota
+
+- Branch publicada: `feature/inc-08-quality-hardening`;
+- PR draft: `#8`, empilhado sobre `feature/inc-07b-transparent-http-profile`;
+- checks observados no head publicado: `governance` e
+  `GitGuardian Security Checks`, ambos verdes;
+- PR permanece draft e sem merge porque não há revisão independente aprovada.
+
 ## Segurança e rollback
 
 - Não há segredo, produção ou nova dependência.
