@@ -2,9 +2,9 @@
 
 ## Estado atual
 
-O primeiro incremento vertical está implementado no branch
-`feature/increment-1-lab-pipeline`. A fonte normativa de estados e evidências é
-`docs/ai/delivery/`.
+O laboratório e o primeiro incremento de mercado real estão implementados no
+branch `feature/increment-1-lab-pipeline`. A fonte normativa de estados e
+evidências é `docs/ai/delivery/`.
 
 ### Incremento 1 — laboratório ponta a ponta
 
@@ -20,9 +20,9 @@ Entregue localmente:
 - imagens multi-stage e topologia Docker Compose;
 - testes unitários e smoke local do fluxo completo.
 
-Pendente de ambiente: a política desta execução bloqueou `docker compose up`,
-portanto a topologia completa foi compilada/configurada, mas a subida simultânea
-dos containers deve ser confirmada no terminal do desenvolvedor.
+O Compose local existente foi observado saudável. A política desta execução
+impediu apenas recriar toda a stack; as novas imagens foram compiladas e os jobs
+de migração/coleta rodaram em containers one-shot contra o PostgreSQL do projeto.
 
 ## Próximos incrementos propostos
 
@@ -34,18 +34,25 @@ dos containers deve ser confirmada no terminal do desenvolvedor.
 - interrupção/reinício do worker;
 - testes automatizados de integração banco/fila/Compose.
 
-### Incremento 3 — primeira fonte real avaliada
+### Incremento 4 — mercado real e portal de inteligência
 
-Pré-condições:
+Entregue:
 
-- decisão de produto sobre categoria, geografia e frequência;
-- análise de termos/robots;
-- allowlist de origem, proteção SSRF/DNS rebinding e redirects;
-- limites de resposta, crawl, evidência e recursos;
-- fonte inicia como `candidate` e exige decisão revisada para `enabled`.
+- catálogo canônico Apple e Samsung com capacidades e cores;
+- adaptadores isolados para Fast Shop, Samsung Shop, KaBuM!, Zoom e iPlace;
+- allowlist de origem, proteção SSRF/DNS/redirects e limites de crawl;
+- distinção visual e operacional entre mercado real e laboratório;
+- busca ampla opcional que persiste somente candidatos para revisão;
+- comparação por varejista, consolidação de aliases e preferência por evidência
+  direta;
+- landing page e workspace responsivo com fluxos de aparelhos, fontes e radar.
 
-### Incremento 4 — histórico e diagnóstico
+### Incremento 5 — amplitude mínima e diagnóstico
 
+- atingir 6–8 varejistas distintos nas variantes prioritárias com adaptadores
+  revisados para Magalu, Casas Bahia, Ponto e integrações oficiais disponíveis;
+- criar visão de cobertura por família, variante e fonte, com SLO de frescor;
+- adicionar fixtures capturadas/sanitizadas por adaptador para regressão de markup;
 - série temporal e mudança efetiva versus verificação recente;
 - cobertura, idade e falhas por fonte;
 - workflow rastreável de correção manual de matching;
@@ -54,5 +61,5 @@ Pré-condições:
 ## Gates permanentes
 
 Cada incremento exige diff focado, testes de comportamento, Ruff, formatação,
-`ty`, build, revisão independente e evidência proporcional. Fontes reais,
-produção, cloud e ações irreversíveis exigem autorização separada.
+`ty`, build, revisão independente e evidência proporcional. Produção, cloud e
+ações irreversíveis exigem autorização separada.

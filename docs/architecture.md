@@ -10,6 +10,8 @@ frontend e faz proxy same-origin para a API.
 Browser -> Nginx/React -> FastAPI -> PostgreSQL
                                \-> Procrastinate job
                                     -> Worker -> Scrapy subprocess
+                                                -> Fast Shop / Samsung Shop
+                                                -> KaBuM! / Zoom
                                                 -> lab-store-a / lab-store-b
                                                 -> PostgreSQL
 ```
@@ -32,12 +34,18 @@ RabbitMQ e serviços cloud não são necessários no volume do MVP.
 1. `POST /sources/{id}/collect` verifica que a fonte está habilitada.
 2. Uma chave `source + minuto` converge cliques repetidos no mesmo run.
 3. O job persistido move o run de `pending` para `running`.
-4. Scrapy visita a categoria, pagina e descobre páginas de produto.
-5. O extrator valida JSON-LD, separa vendedor, oferta, termos e variante.
+4. Scrapy visita somente a página revisada e limitada daquela fonte.
+5. O extrator específico valida JSON-LD, separa vendedor, oferta, termos e
+   variante; marketplaces preservam o vendedor efetivo.
 6. A observação e sua evidência são persistidas; replay do mesmo run não duplica
    a observação.
 7. O run termina em `succeeded`, `partial` ou `failed`.
-8. A consulta usa somente a observação mais recente por oferta ativa.
+8. A consulta usa somente a observação mais recente por oferta ativa e uma
+   observação por varejista; evidência direta precede uma cópia agregada.
+
+A descoberta ampla é um fluxo paralelo: a API consulta um provedor oficial de
+busca, salva URLs como `source_candidate` e atribui um nível inicial de confiança.
+Nenhum candidato é promovido automaticamente a `source`.
 
 ## Persistência e invariantes
 
@@ -47,8 +55,21 @@ RabbitMQ e serviços cloud não são necessários no volume do MVP.
 - página descoberta: única por `(source_id, canonical_url)`;
 - match: no máximo um ativo por oferta; histórico anterior é preservado;
 - evidência: hash do HTML, extrator/versão e excerpt limitado, com retenção por
-  URL;
+  execução e URL;
 - GTIN presente é autoritativo: um GTIN desconhecido não cai para atributos.
+
+## Estratégia de fontes
+
+- **direta**: Fast Shop, Samsung Shop e KaBuM! fornecem a página que sustenta o
+  preço; têm precedência na deduplicação;
+- **agregadora**: Zoom adiciona amplitude, mas cada oferta é atribuída ao
+  `offeredBy` publicado e não ao comparador;
+- **referência**: Apple Brasil e Samsung Brasil sustentam catálogo/especificações,
+  sem serem automaticamente tratadas como preço coletável;
+- **candidata**: radar Brave ou cadastro manual grava URL, confiança e motivo;
+  nenhuma URL descoberta executa spider automaticamente;
+- **laboratório**: as fontes Nimbus validam o pipeline, mas nunca entram na visão
+  de mercado real.
 
 SQL explícito é compartilhado entre acesso assíncrono (API/jobs) e síncrono
 (pipeline Scrapy). Migrations Alembic controlam o schema.
@@ -65,10 +86,18 @@ O Compose define:
 A API local não possui autenticação. Esse contrato depende do bind em loopback.
 CORS permite apenas o servidor/preview Vite; no Docker, Nginx usa proxy same-origin.
 
-URLs e HTML são entrada não confiável. No incremento atual, apenas duas fontes
-sintéticas com links relativos e finitos estão habilitadas. Antes de qualquer fonte
-real, bloquear destinos privados/link-local, restringir origem/protocolo e redirects,
-limitar tamanho de resposta, profundidade, páginas, tempo e captura de logs.
+URLs e HTML são entrada não confiável. Adaptadores externos aceitam somente HTTPS,
+host exato em allowlist, porta 443 e resolução pública; destinos privados,
+loopback, link-local, multicast e reservados são rejeitados. Redirects passam pela
+mesma política. Scrapy respeita robots.txt e impõe limites de resposta, redirect,
+tempo, concorrência e páginas. Extratores aceitam no máximo 24 variantes ou 20
+ofertas agregadas por página, limitando também a multiplicação de evidências. O
+laboratório opta explicitamente por HTTP e rede privada. CAPTCHA, login e bloqueios
+não são contornados.
+
+A validação DNS anterior ao request reduz SSRF, mas não elimina completamente
+DNS rebinding entre validação e conexão; execução local, allowlist exata e ausência
+de URLs arbitrárias habilitadas reduzem esse risco residual.
 
 ## Recuperação
 

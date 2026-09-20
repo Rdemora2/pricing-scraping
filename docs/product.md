@@ -17,15 +17,22 @@ de uma variante em um conjunto pequeno de fontes. A primeira decisão suportada 
 "qual é a faixa anunciada agora e por que cada oferta entrou ou saiu da
 comparação?".
 
-## Escopo entregue no laboratório
+## Escopo entregue
 
-- produto canônico com três variantes sintéticas;
+- catálogo com 76 variantes de iPhone 17/Pro/Pro Max e Galaxy S26/S26+/Ultra;
+- adaptadores reais para Fast Shop, Samsung Shop, KaBuM! e Zoom, com evidência,
+  vendedor efetivo e atualização manual;
+- integração iPlace mantida como candidata enquanto o acesso automatizado
+  declarado responder HTTP 403;
+- radar opcional de referências na web, com confiança e revisão antes de coleta;
 - duas fontes HTTP com markup diferente, paginação e múltiplos vendedores;
 - coleta manual assíncrona e idempotente;
 - extração JSON-LD validada e evidência com hash/versão do extrator;
 - matching determinístico por GTIN e, quando o GTIN está ausente, atributos;
 - comparação de preço atual com mínimo, mediana, máximo e exclusões;
 - painel para iniciar coletas, acompanhar fontes e explorar variantes.
+- landing page própria e workspace com visão geral, aparelhos, fontes, radar,
+  cadastro de equipamento e cadastro de referência.
 
 ## População comparável
 
@@ -36,25 +43,35 @@ Uma observação entra na comparação somente quando:
 3. descreve produto novo;
 4. está anunciada como disponível;
 5. é a observação mais recente daquele anúncio.
+6. o preço não depende de cartão, clube, troca ou outra condição comercial.
+7. existe no máximo uma observação por varejista, preferindo a fonte direta.
 
 Frete desconhecido permanece desconhecido. Cupom, parcelamento e desconto à vista
 são exibidos como condições, não aplicados silenciosamente ao preço-base. Preço
 ausente ou inválido causa falha de extração; nunca vira zero.
 
 Quando nenhuma oferta satisfaz a população, a resposta é explicitamente "dados
-insuficientes". A quantidade de fontes representa as fontes das ofertas incluídas,
-não cobertura da internet.
+insuficientes". **Varejistas distintos** mede diversidade comercial; **canais de
+evidência** mede quantas fontes sustentam as ofertas. Nenhuma das duas representa
+cobertura total da internet.
+
+## Meta de amostragem
+
+O piso desejado é 6–8 valores de varejistas confiáveis por aparelho/variante; mais
+é melhor. Esse número é meta operacional, não seed ou dado decorativo. A coleta
+real de referência de `2026-09-20` observou, na melhor variante, três varejistas
+distintos. A UX explicita a diferença entre cobertura atual e meta, e a arquitetura
+permite crescer fonte por fonte sem misturar anúncios incompatíveis.
 
 ## Fora do escopo atual
 
-- descoberta irrestrita de novos domínios;
 - navegador automatizado, CAPTCHA, paywall ou autenticação de lojas;
 - recomendação/alteração automática de preços;
 - inferência de vendas, demanda, elasticidade ou preço ótimo;
 - custos, margens, integrações comerciais, multi-tenancy ou cloud;
 - uso de IA no fluxo principal.
 
-## Próximas decisões de produto
-
-Antes da primeira fonte real, definir categoria, mercado, termos de acesso,
-frequência, limites locais e critérios formais para habilitar/desabilitar uma fonte.
+Resultados da busca ampla são referências, não cobertura total da internet. Apple
+Brasil sustenta o catálogo e a lista de revendedores, mas não é coletada
+automaticamente. Cada nova loja exige avaliação de acesso, parser específico e
+decisão explícita de habilitação.
