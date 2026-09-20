@@ -5,6 +5,9 @@ ferramenta ou documentação do produto; esta fila é o índice operacional loca
 
 | Ordem | Unidade | Resultado/aceite | Git root | Depende de | Estado |
 | ---: | --- | --- | --- | --- | --- |
+| 1 | `INC-01` | Backend Python estabilizado, documentado e coberto por testes úteis; stack de API, worker, PostgreSQL e fontes sintéticas executa via Docker Compose | `.` | — | `IN_PROGRESS` |
+| 2 | `INC-02` | Frontend React responsivo e acessível permite disparar coleta, acompanhar execução e consultar comparações reais da API | `.` | `INC-01` | `WAITING` |
+| 3 | `INC-03` | Fluxo completo local validado, documentação reconciliada e evidência/rollback registrados | `.` | `INC-02` | `WAITING` |
 
 Fila vazia significa governança ainda não adotada; não invente unidades.
 

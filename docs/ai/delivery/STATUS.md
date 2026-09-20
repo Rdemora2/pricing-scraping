@@ -1,11 +1,12 @@
 # Estado de execução
 
-**Atualizado em:** `YYYY-MM-DD`
-**Estado global:** `NOT_ADOPTED`
-**Unidade ativa:** `nenhuma`
+**Atualizado em:** `2026-09-20`
+**Estado global:** `IN_PROGRESS`
+**Unidade ativa:** `INC-01`
 
-`NOT_ADOPTED` significa que o repositório recebeu o contrato, mas ainda não criou
-unidades reais. Não execute roadmap até substituir esse estado e preencher a fila.
+O roadmap foi adotado para concluir o primeiro incremento vertical do laboratório
+local de inteligência de preços. A entrega permanece limitada ao ambiente local;
+não inclui deploy, cloud ou coleta de fontes reais.
 
 ## Estados normativos
 
