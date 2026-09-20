@@ -14,6 +14,8 @@ class ListingItem(scrapy.Item):
     run_id = scrapy.Field()
     url = scrapy.Field()
     canonical_url = scrapy.Field()
+    evidence_url = scrapy.Field()
+    evidence_canonical_url = scrapy.Field()
     http_status = scrapy.Field()
     raw_html = scrapy.Field()
     extractor_name = scrapy.Field()

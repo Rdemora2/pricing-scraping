@@ -132,3 +132,27 @@ def test_comparison_collapses_known_retailer_trading_name_aliases() -> None:
     assert result.included_offer_count == 1
     assert result.retailer_count == 1
     assert result.included[0].seller_name == "Magalu"
+
+
+def test_comparison_prefers_direct_evidence_over_all_supported_aggregators() -> None:
+    result = compare_variant(
+        uuid4(),
+        [
+            snapshot(
+                500000,
+                source="2aFinder — Galaxy S26",
+                seller="SamsungLojaOficial · Mercado Livre",
+            ),
+            snapshot(490000, source="Samsung Shop — Galaxy S26", seller="Samsung Shop Brasil"),
+            snapshot(510000, source="Buscapé — Galaxy S26", seller="Samsung Brasil"),
+            snapshot(
+                480000,
+                source="Samsung Shop — Galaxy S26",
+                seller="SAMSUNG ELETRÔNICA DA AMAZÔNIA LTDA.",
+            ),
+        ],
+    )
+
+    assert result.included_offer_count == 1
+    assert result.retailer_count == 1
+    assert result.included[0].source_name == "Samsung Shop — Galaxy S26"

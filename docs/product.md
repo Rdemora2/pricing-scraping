@@ -20,8 +20,8 @@ comparação?".
 ## Escopo entregue
 
 - catálogo com 76 variantes de iPhone 17/Pro/Pro Max e Galaxy S26/S26+/Ultra;
-- adaptadores reais para Fast Shop, Samsung Shop, KaBuM! e Zoom, com evidência,
-  vendedor efetivo e atualização manual;
+- adaptadores reais para Fast Shop, Samsung Shop, KaBuM!, Zoom, 2aFinder e
+  Buscapé, com evidência, vendedor efetivo e atualização manual;
 - integração iPlace mantida como candidata enquanto o acesso automatizado
   declarado responder HTTP 403;
 - radar opcional de referências na web, com confiança e revisão antes de coleta;
@@ -59,9 +59,12 @@ cobertura total da internet.
 
 O piso desejado é 6–8 valores de varejistas confiáveis por aparelho/variante; mais
 é melhor. Esse número é meta operacional, não seed ou dado decorativo. A coleta
-real de referência de `2026-09-20` observou, na melhor variante, três varejistas
-distintos. A UX explicita a diferença entre cobertura atual e meta, e a arquitetura
-permite crescer fonte por fonte sem misturar anúncios incompatíveis.
+real de referência de `2026-09-20` observou `9/11/9/5/6/6` varejistas nas
+variantes prioritárias de iPhone 17/Pro/Pro Max e Galaxy S26/S26+/Ultra. A UX
+explicita a diferença entre cobertura atual e meta; o S26 base continua em cinco
+na configuração Dourado, exclusiva da loja oficial segundo a Samsung, porque
+aliases do fabricante são consolidados e variantes incompatíveis não são
+misturadas para completar artificialmente o número.
 
 ## Fora do escopo atual
 

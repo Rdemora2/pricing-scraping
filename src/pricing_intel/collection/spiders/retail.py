@@ -14,7 +14,9 @@ from pricing_intel.collection.extraction import ExtractionError
 from pricing_intel.collection.items import ListingItem
 from pricing_intel.collection.network_policy import validate_reference_url
 from pricing_intel.collection.real_sources import (
+    BuscapeOfferParser,
     RetailListing,
+    TwoAFinderMarkdownParser,
     extract_fast_shop_listing,
     extract_iplace_listings,
     extract_kabum_listing,
@@ -59,6 +61,10 @@ class _RetailSpider(scrapy.Spider):
             run_id=self.run_id,
             url=url,
             canonical_url=canonicalize(url),
+            # Keep the commercial reference separate from the exact document
+            # whose body and hash are persisted as extraction evidence.
+            evidence_url=response.url,
+            evidence_canonical_url=canonicalize(response.url),
             http_status=response.status,
             raw_html=response.text,
             extractor_name=self.extractor_name,
@@ -146,6 +152,58 @@ class ZoomSpider(_RetailSpider):
             listings = extract_zoom_listings(response.text, response.url)
         except ExtractionError as exc:
             self.logger.error("Zoom extraction failed: %s", exc)
+            return
+        for listing in listings:
+            yield self.listing_item(response, listing)
+
+
+class TwoAFinderSpider(_RetailSpider):
+    name = "two_a_finder"
+    allowed_domains = ("2afinder.com",)
+    extractor_name = "two_a_finder_markdown_table"
+    extractor_version = "1.0.0"
+    parser = TwoAFinderMarkdownParser()
+
+    def parse_product(self, response: scrapy.http.Response):
+        try:
+            listings = self.parser.parse(response.text, response.url)
+        except ExtractionError as exc:
+            self.logger.error("2aFinder extraction failed: %s", exc)
+            return
+        for listing in listings:
+            yield self.listing_item(response, listing)
+
+
+class BuscapeSpider(_RetailSpider):
+    name = "buscape"
+    # Product page + public offer document, plus one robots.txt fetch per host.
+    custom_settings = {"CLOSESPIDER_PAGECOUNT": 5}  # noqa: RUF012 - Scrapy contract
+    allowed_domains = ("www.buscape.com.br", "api-v1.zoom.com.br")
+    extractor_name = "buscape_public_product_offers"
+    extractor_version = "1.0.0"
+    parser = BuscapeOfferParser()
+
+    def parse_product(self, response: scrapy.http.Response):
+        try:
+            product_id = self.parser.product_id(response.text)
+        except ExtractionError as exc:
+            self.logger.error("Buscapé product id extraction failed: %s", exc)
+            return
+        api_url = (
+            f"https://api-v1.zoom.com.br/sale-condition/v1/product/{product_id}"
+            "?order=DEFAULT&page=1&pageSize=20&resolution=LARGE&affiliateId=1&brand=buscape"
+        )
+        yield scrapy.Request(
+            api_url,
+            callback=self.parse_offers,
+            cb_kwargs={"evidence_url": response.url},
+        )
+
+    def parse_offers(self, response: scrapy.http.Response, *, evidence_url: str):
+        try:
+            listings = self.parser.parse(response.text, evidence_url)
+        except ExtractionError as exc:
+            self.logger.error("Buscapé offer extraction failed: %s", exc)
             return
         for listing in listings:
             yield self.listing_item(response, listing)

@@ -114,6 +114,10 @@ S26, S26+ e S26 Ultra, com capacidades e cores oficiais. Fontes habilitadas:
 - Fast Shop, com páginas diretas dos três iPhones;
 - KaBuM!, incluindo identificação do vendedor quando a página é marketplace;
 - Zoom, como canal agregador que preserva o varejista efetivo de cada oferta;
+- 2aFinder, por documento Markdown público, com vendedor, canal, condição, frete,
+  variante, timestamp e identificador de oferta;
+- Buscapé, pela página pública e pelo documento de ofertas que ela própria
+  consome, sem seguir redirecionamentos comerciais;
 - duas lojas sintéticas isoladas, usadas somente para regressão do pipeline.
 
 A meta de produto é atingir **no mínimo 6–8 varejistas distintos por aparelho e
@@ -121,8 +125,12 @@ variante**, e continuar crescendo além disso. A interface não transforma essa
 meta em dado: ela mostra a cobertura realmente coletada. Uma oferta repetida no
 site direto e em comparador conta uma vez; aliases conhecidos, como Magalu e
 Magazine Luiza, também são consolidados. Em uma coleta real de referência em
-`2026-09-20`, a melhor variante tinha três varejistas distintos, portanto o piso
-de 6–8 ainda é uma lacuna explícita, não uma promessa artificial.
+`2026-09-20`, as variantes prioritárias observaram `9/11/9/5/6/6` varejistas
+para iPhone 17/Pro/Pro Max e Galaxy S26/S26+/Ultra, respectivamente. Cinco das
+seis famílias atingem o piso. O Galaxy S26 base Dourado permanece em cinco: a
+própria Samsung classifica Dourado/Prata como cores exclusivas da loja oficial, e
+a coleta pública atual não expõe um sexto vendedor novo, disponível e exato sem
+duplicar a Samsung ou misturar variante.
 
 ## Parada, rollback e dados locais
 
@@ -148,14 +156,18 @@ preservar histórico de coletas.
 
 ## Limites atuais
 
-- a cobertura real ainda não atinge o piso de 6–8 varejistas distintos por
-  variante; ampliar adaptadores diretos é o principal próximo incremento;
+- o Galaxy S26 base ainda está em cinco varejistas distintos na variante Dourado
+  observada; a limitação externa de oferta está registrada em
+  `docs/ai/delivery/evidence/INC-05.md`, e ampliar fontes diretas continua
+  necessário para fechar o piso sem contar aliases ou misturar variantes;
 - iPlace está integrado, mas permanece candidato porque respondeu HTTP 403 ao
   user-agent declarado do coletor durante a validação;
 - Apple Brasil é referência canônica, não fonte automatizada; seus termos vedam
   automação da página;
-- Mercado Livre e Amazon exigem credenciais de APIs oficiais; Casas Bahia, Ponto
-  e Magalu permanecem candidatos a adaptadores dedicados;
+- Mercado Livre e Amazon exigem credenciais de APIs oficiais para integrações
+  próprias; suas ofertas só entram quando um comparador público declara vendedor,
+  variante e condição suficientes. Casas Bahia, Ponto e Magalu permanecem
+  candidatos a adaptadores diretos dedicados;
 - candidatos da busca ampla exigem revisão humana e adaptador dedicado antes de
   qualquer coleta;
 - a API não possui autenticação e deve permanecer restrita ao loopback;

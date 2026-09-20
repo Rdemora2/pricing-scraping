@@ -49,8 +49,23 @@ Entregue:
 
 ### Incremento 5 — amplitude mínima e diagnóstico
 
-- atingir 6–8 varejistas distintos nas variantes prioritárias com adaptadores
-  revisados para Magalu, Casas Bahia, Ponto e integrações oficiais disponíveis;
+Entregue:
+
+- adaptadores limitados e auditáveis para 2aFinder Markdown e o documento público
+  de ofertas consumido pelo Buscapé;
+- vendedor e canal preservados, condição desconhecida excluída, leads não
+  seguidos, disponibilidade ausente excluída e limite de 20 ofertas;
+- variantes prioritárias na abertura do workspace e cobertura real de
+  `9/11/9/5/6/6` varejistas por família;
+- URL comercial e documento efetivamente extraído persistidos separadamente para
+  reprodução da evidência.
+
+Próximos passos:
+
+- superar o bloqueio externo de oferta do Galaxy S26 Dourado, hoje em cinco
+  vendedores exatos, sem duplicar a Samsung ou misturar variantes;
+- revisar adaptadores diretos para Magalu, Casas Bahia, Ponto e integrações
+  oficiais disponíveis;
 - criar visão de cobertura por família, variante e fonte, com SLO de frescor;
 - adicionar fixtures capturadas/sanitizadas por adaptador para regressão de markup;
 - série temporal e mudança efetiva versus verificação recente;

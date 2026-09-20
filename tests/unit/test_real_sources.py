@@ -1,14 +1,21 @@
 import json
+from decimal import Decimal
 
-from pricing_intel.collection.extraction import iter_product_json_ld
+import pytest
+from scrapy.http import Request, TextResponse
+
+from pricing_intel.collection.extraction import ExtractionError, iter_product_json_ld
 from pricing_intel.collection.real_sources import (
     MAX_AGGREGATE_OFFERS,
+    BuscapeOfferParser,
+    TwoAFinderMarkdownParser,
     extract_fast_shop_listing,
     extract_iplace_listings,
     extract_kabum_listing,
     extract_samsung_shop_listings,
     extract_zoom_listings,
 )
+from pricing_intel.collection.spiders.retail import BuscapeSpider
 from pricing_intel.domain.enums import Availability, Condition
 from pricing_intel.matching.signature import compute_signature
 from scripts.seed_catalog import PRODUCTS
@@ -297,3 +304,166 @@ def test_zoom_caps_untrusted_aggregate_offer_count() -> None:
     listings = extract_zoom_listings(_html(payload), "https://www.zoom.com.br/celular/item")
 
     assert len(listings) == MAX_AGGREGATE_OFFERS
+
+
+def test_two_a_finder_parses_auditable_rows_and_literal_variant_separator() -> None:
+    page = """# iPhone 17 Pro 256GB - Prateado
+
+Onde comprar iPhone 17 Pro 256GB - Prateado: 2 ofertas ativas em 2 lojas.
+
+| # | Preço | Loja | Vendedor | Condição | Frete | Variante | Verificado | Oferta ID | Próximo passo |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | R$\xa07.549,90 | Mercado Livre | LOJA_ALPHA | novo | grátis | storage=256 GB | cpu=Qualcomm | 2026-09-20T02:06:47.400Z | `cc672f0a-b759-4df6-bf80-d5c1e6c126cc` | https://2afinder.com/produto/iphone-17-pro |
+| 2 | R$ 9.359,10 | Amazon Brasil | Amazon.com.br | não informada | a calcular | storage=256 GB | 2026-09-20T08:03:41.357Z | `0f87ef2f-8113-4618-b65a-34ee7e666270` | https://2afinder.com/produto/iphone-17-pro |
+"""
+
+    listings = TwoAFinderMarkdownParser().parse(
+        page, "https://2afinder.com/produto/iphone-17-pro.md"
+    )
+
+    assert len(listings) == 2
+    assert listings[0].price_amount == Decimal("7549.90")
+    assert listings[0].seller_display_name == "LOJA_ALPHA · Mercado Livre"
+    assert listings[0].attributes["model"] == "iphone_17_pro"
+    assert listings[0].attributes["color"] == "Prateado"
+    assert listings[0].condition == Condition.NEW
+    assert listings[0].shipping.cost_minor_units == 0
+    assert listings[1].condition == Condition.UNKNOWN
+    assert listings[1].shipping.known is False
+    assert all(item.url.endswith("iphone-17-pro.md") for item in listings)
+
+
+def test_two_a_finder_caps_offer_table() -> None:
+    rows = "\n".join(
+        f"| {index} | R$ 7.000,00 | Mercado Livre | SELLER_{index} | novo | grátis | "
+        "storage=1 TB · color=Preto | 2026-09-20T02:06:47.400Z | "
+        f"`00000000-0000-0000-0000-{index:012d}` | "
+        "https://2afinder.com/produto/galaxy-s26-ultra |"
+        for index in range(1, MAX_AGGREGATE_OFFERS + 6)
+    )
+    page = (
+        "# Galaxy S26 Ultra 1TB - Preto\n\n"
+        f"Onde comprar Galaxy S26 Ultra: {MAX_AGGREGATE_OFFERS + 5} ofertas ativas "
+        f"em {MAX_AGGREGATE_OFFERS + 5} lojas.\n\n{rows}"
+    )
+
+    listings = TwoAFinderMarkdownParser().parse(page, "https://2afinder.com/produto/item.md")
+
+    assert len(listings) == MAX_AGGREGATE_OFFERS
+    assert listings[0].attributes["storage_gb"] == "1024"
+
+
+def test_two_a_finder_requires_explicit_active_offer_status() -> None:
+    page = """# iPhone 17 Pro 256GB - Prateado
+
+| 1 | R$ 7.549,90 | Mercado Livre | LOJA_ALPHA | novo | grátis | storage=256 GB | 2026-09-20T02:06:47.400Z | `cc672f0a-b759-4df6-bf80-d5c1e6c126cc` | https://2afinder.com/produto/iphone-17-pro |
+"""
+
+    with pytest.raises(ExtractionError, match="does not confirm active offers"):
+        TwoAFinderMarkdownParser().parse(page, "https://2afinder.com/produto/iphone-17-pro.md")
+
+
+def test_buscape_extracts_product_id_and_only_explicit_comparable_variants() -> None:
+    parser = BuscapeOfferParser()
+    page = '<script id="__NEXT_DATA__">{"prodId":13994200,"copy":{"prodId":13994200}}</script>'
+    payload = {
+        "hits": [
+            {
+                "offer_id": "offer-1",
+                "name": "Smartphone Samsung Galaxy S26+ 256GB Violeta",
+                "seller": {"id": "245", "name": "Webcontinental"},
+                "sales_condition": {
+                    "price": 8555.07,
+                    "stock": 4,
+                    "installments": [{"amount_months": 8}],
+                },
+                "condition": "NEW",
+            },
+            {
+                "offer_id": "offer-2",
+                "name": "Smartphone Samsung Galaxy S26+ 256GB",
+                "seller": {"id": "22905", "name": "Magazine Luiza"},
+                "sales_condition": {"price": 4599, "stock": 2},
+                "condition": "NEW",
+            },
+        ]
+    }
+
+    assert parser.product_id(page) == "13994200"
+    listings = parser.parse(json.dumps(payload), "https://www.buscape.com.br/celular/item")
+
+    assert len(listings) == 1
+    assert listings[0].seller_display_name == "Webcontinental"
+    assert listings[0].attributes["model"] == "galaxy_s26_plus"
+    assert listings[0].attributes["color"] == "Violeta"
+    assert listings[0].payment_terms.installment_count == 8
+    assert listings[0].payment_terms.price_basis.value == "cash"
+    assert listings[0].availability == Availability.IN_STOCK
+
+
+@pytest.mark.parametrize(
+    ("stock", "expected"),
+    [
+        (None, Availability.UNKNOWN),
+        (-1, Availability.OUT_OF_STOCK),
+        (0, Availability.OUT_OF_STOCK),
+        (1, Availability.IN_STOCK),
+        (True, Availability.UNKNOWN),
+    ],
+)
+def test_buscape_preserves_only_explicit_stock_status(stock, expected) -> None:
+    payload = {
+        "hits": [
+            {
+                "offer_id": "offer-1",
+                "name": "Smartphone Samsung Galaxy S26+ 256GB Violeta",
+                "seller": {"id": "245", "name": "Webcontinental"},
+                "sales_condition": {"price": 8555.07, "stock": stock},
+                "condition": "NEW",
+            }
+        ]
+    }
+
+    listing = BuscapeOfferParser().parse(
+        json.dumps(payload), "https://www.buscape.com.br/celular/item"
+    )[0]
+
+    assert listing.availability == expected
+
+
+def test_buscape_rejects_ambiguous_page_identity() -> None:
+    parser = BuscapeOfferParser()
+
+    with pytest.raises(ExtractionError, match="unambiguous product id"):
+        parser.product_id('{"prodId":1,"nested":{"prodId":2}}')
+
+
+def test_buscape_keeps_commercial_and_evidence_urls_distinct() -> None:
+    product_url = "https://www.buscape.com.br/celular/item"
+    api_url = "https://api-v1.zoom.com.br/sale-condition/v1/product/13994200"
+    payload = json.dumps(
+        {
+            "hits": [
+                {
+                    "offer_id": "offer-1",
+                    "name": "Smartphone Samsung Galaxy S26+ 256GB Violeta",
+                    "seller": {"id": "245", "name": "Webcontinental"},
+                    "sales_condition": {"price": 8555.07, "stock": 4},
+                    "condition": "NEW",
+                }
+            ]
+        }
+    )
+    response = TextResponse(
+        url=api_url,
+        request=Request(api_url),
+        body=payload.encode(),
+        encoding="utf-8",
+    )
+    spider = BuscapeSpider(source_id="source-1", run_id="run-1", base_url=product_url)
+
+    item = next(spider.parse_offers(response, evidence_url=product_url))
+
+    assert item["url"] == product_url
+    assert item["evidence_url"] == api_url
+    assert item["raw_html"] == payload

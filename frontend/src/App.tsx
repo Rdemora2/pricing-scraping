@@ -14,6 +14,14 @@ const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
   hour: "2-digit",
   minute: "2-digit",
 });
+const priorityVariantByProduct: Record<string, { storage: string; color: string }> = {
+  "Apple iPhone 17": { storage: "256", color: "Lavanda" },
+  "Apple iPhone 17 Pro": { storage: "256", color: "Prateado" },
+  "Apple iPhone 17 Pro Max": { storage: "1024", color: "Prateado" },
+  "Samsung Galaxy S26": { storage: "256", color: "Dourado" },
+  "Samsung Galaxy S26+": { storage: "512", color: "Violeta" },
+  "Samsung Galaxy S26 Ultra": { storage: "1024", color: "Preto" },
+};
 
 function Icon({ name }: { name: IconName }) {
   const paths = {
@@ -93,6 +101,8 @@ function sourceState(source: Source): { label: string; tone: string } {
 function sourceAppliesToProduct(source: Source, product: Product | null): boolean {
   if (!product) return false;
   if (source.adapter_name === "zoom") return source.name === `Zoom — ${product.name}`;
+  if (source.adapter_name === "two_a_finder") return source.name === `2aFinder — ${product.name}`;
+  if (source.adapter_name === "buscape") return source.name === `Buscapé — ${product.name}`;
   if (source.adapter_name === "samsung_shop")
     return source.name === `Samsung Shop — ${product.name.replace("Samsung ", "")}`;
   if (source.adapter_name === "iplace") return product.name === "Apple iPhone 17";
@@ -431,7 +441,16 @@ export function App() {
       .then((items) => {
         if (!active) return;
         setVariants(items);
+        const product = products.find((item) => item.id === selectedProductId);
+        const priority = product ? priorityVariantByProduct[product.name] : undefined;
         const defaultVariant =
+          (priority
+            ? items.find(
+                (item) =>
+                  item.attributes.storage_gb === priority.storage &&
+                  item.attributes.color === priority.color,
+              )
+            : undefined) ??
           items.find(
             (item) => item.attributes.storage_gb === "256" && item.attributes.color === "Preto",
           ) ??
@@ -447,7 +466,7 @@ export function App() {
     return () => {
       active = false;
     };
-  }, [selectedProductId]);
+  }, [products, selectedProductId]);
 
   useEffect(() => {
     if (!selectedVariantId) return;
@@ -721,7 +740,9 @@ export function App() {
                   <span className="metric-index">03</span>
                   <p>Varejistas distintos</p>
                   <strong>{comparison?.retailer_count ?? 0}</strong>
-                  <small>meta mínima 6 · {comparison?.source_count ?? 0} canais de evidência</small>
+                  <small>
+                    piso operacional 6–8 · {comparison?.source_count ?? 0} canais de evidência
+                  </small>
                 </article>
                 <article className="metric-card">
                   <span className="metric-index">04</span>

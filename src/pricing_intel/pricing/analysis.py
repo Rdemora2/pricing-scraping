@@ -62,6 +62,9 @@ def _median_minor_units(sorted_prices: list[int]) -> int:
 
 def _retailer_key(name: str) -> str:
     """Collapse known trading-name aliases without merging unrelated sellers."""
+    # Aggregators may append their sales channel for UI transparency. The
+    # retailer identity remains the seller before the middle-dot separator.
+    name = name.split(" · ", maxsplit=1)[0]
     folded = "".join(
         character
         for character in unicodedata.normalize("NFKD", name.casefold())
@@ -75,8 +78,19 @@ def _retailer_key(name: str) -> str:
         "kabum": "kabum",
         "fast shop": "fast-shop",
         "fastshop": "fast-shop",
+        "samsung": "samsung",
+        "samsung brasil": "samsung",
+        "samsung shop brasil": "samsung",
+        "samsung eletronica da amazonia ltda": "samsung",
+        "samsunglojaoficial": "samsung",
+        "lojaoficialcasasbahia": "casas-bahia",
+        "casas bahia": "casas-bahia",
     }
     return aliases.get(normalized, normalized)
+
+
+def _is_aggregator_source(name: str) -> bool:
+    return name.startswith(("Zoom —", "Buscapé —", "2aFinder —"))
 
 
 def compare_variant(
@@ -134,7 +148,7 @@ def compare_variant(
     for snapshot in sorted(
         included,
         key=lambda item: (
-            item.source_name.startswith("Zoom —"),
+            _is_aggregator_source(item.source_name),
             -item.observed_at.timestamp(),
             str(item.offer_id),
         ),

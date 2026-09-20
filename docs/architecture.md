@@ -12,6 +12,7 @@ Browser -> Nginx/React -> FastAPI -> PostgreSQL
                                     -> Worker -> Scrapy subprocess
                                                 -> Fast Shop / Samsung Shop
                                                 -> KaBuM! / Zoom
+                                                -> 2aFinder / Buscapé
                                                 -> lab-store-a / lab-store-b
                                                 -> PostgreSQL
 ```
@@ -62,8 +63,9 @@ Nenhum candidato é promovido automaticamente a `source`.
 
 - **direta**: Fast Shop, Samsung Shop e KaBuM! fornecem a página que sustenta o
   preço; têm precedência na deduplicação;
-- **agregadora**: Zoom adiciona amplitude, mas cada oferta é atribuída ao
-  `offeredBy` publicado e não ao comparador;
+- **agregadora**: Zoom, 2aFinder e Buscapé adicionam amplitude, mas cada oferta é
+  atribuída ao vendedor publicado e não ao comparador. Lead/afiliado nunca é
+  seguido; a evidência permanece na página ou documento público de comparação;
 - **referência**: Apple Brasil e Samsung Brasil sustentam catálogo/especificações,
   sem serem automaticamente tratadas como preço coletável;
 - **candidata**: radar Brave ou cadastro manual grava URL, confiança e motivo;
