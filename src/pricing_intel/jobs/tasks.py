@@ -25,6 +25,12 @@ async def run_collection(run_id: str) -> None:
     if run is None:
         logger.error("collection_run_not_found", run_id=run_id)
         return
+    if run.status != RunStatus.PENDING:
+        # Replaying a defer for a run already picked up (or finished) must
+        # not re-execute it — reprocessing the same job must not duplicate
+        # its effect.
+        logger.warning("collection_run_already_started", run_id=run_id, status=run.status.value)
+        return
 
     source = await sources_q.get_source(run.source_id)
     if source is None:
