@@ -2,9 +2,10 @@
 
 ## Estado atual
 
-O laboratório e o primeiro incremento de mercado real estão implementados no
-branch `feature/increment-1-lab-pipeline`. A fonte normativa de estados e
-evidências é `docs/ai/delivery/`.
+O roadmap local chegou ao `INC-08`, atualmente no branch
+`feature/inc-08-quality-hardening`. A fonte normativa de estados e evidências é
+`docs/ai/delivery/`; branches históricas citadas nas evidências não representam o
+head atual.
 
 ### Incremento 1 — laboratório ponta a ponta
 
@@ -24,15 +25,13 @@ O Compose local existente foi observado saudável. A política desta execução
 impediu apenas recriar toda a stack; as novas imagens foram compiladas e os jobs
 de migração/coleta rodaram em containers one-shot contra o PostgreSQL do projeto.
 
-## Próximos incrementos propostos
+## Incrementos concluídos
 
 ### Incremento 2 — resiliência do laboratório
 
-- alteração controlada de preço;
-- falha transitória e retry observável;
-- mudança de markup com fixtures de regressão;
-- interrupção/reinício do worker;
-- testes automatizados de integração banco/fila/Compose.
+- alteração controlada de preço e falha transitória observável;
+- fixtures de markup e idempotência do pipeline;
+- testes automatizados do domínio e smoke em Compose.
 
 ### Incremento 4 — mercado real e portal de inteligência
 
@@ -86,6 +85,19 @@ Próximos passos:
 - cobertura, idade e falhas por fonte;
 - workflow rastreável de correção manual de matching;
 - exportação de evidência sanitizada.
+
+### Incrementos 7 e 8 — inteligência e hardening
+
+Entregue localmente:
+
+- inteligência consolidada por aparelho, armazenamento e cor, com suficiência
+  de amostra explícita;
+- perfil HTTP transparente, sem fingerprint falso de navegador;
+- preço estritamente positivo em domínio, extratores e banco;
+- runtimes Docker separados para API, worker com Chromium e testes;
+- catálogo tipado com 17 aparelhos, 221 variantes de mercado e referência
+  oficial por família;
+- estados vazios honestos para aparelhos ainda sem coletor homologado.
 
 ## Gates permanentes
 

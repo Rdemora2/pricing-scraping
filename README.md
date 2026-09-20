@@ -95,7 +95,7 @@ Frontend local, quando necessário:
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run check
 npm run build
 ```
@@ -142,8 +142,12 @@ Variáveis principais:
 
 ## Catálogo e cobertura
 
-O seed contém 76 variantes canônicas: iPhone 17, 17 Pro e 17 Pro Max; Galaxy
-S26, S26+ e S26 Ultra, com capacidades e cores oficiais. Fontes habilitadas:
+O seed contém 17 aparelhos de mercado e 221 variantes canônicas, com proveniência
+oficial versionada no código: linha iPhone 16, iPhone 17, iPhone Air e iPhone 18
+Pro; Galaxy S25 e S26; e Motorola Edge 70 Pro. O laboratório adiciona somente
+três variantes Nimbus isoladas. O cadastro amplo não é apresentado como cobertura
+de preço: coletores permanecem habilitados apenas para as páginas efetivamente
+revisadas. Fontes habilitadas para as seis famílias prioritárias:
 
 - Samsung Shop, com variantes estruturadas dos três Galaxy;
 - Fast Shop, com páginas diretas dos três iPhones;
@@ -219,6 +223,9 @@ preservar histórico de coletas.
   verificáveis;
 - Apple Brasil é referência canônica, não fonte automatizada; seus termos vedam
   automação da página;
+- os modelos recém-cadastrados das linhas iPhone 16/18, Galaxy S25 e Motorola
+  ainda não possuem coletores habilitados; o portal mostra esse estado e orienta
+  a descoberta/qualificação, sem simular preço ou cobertura;
 - Mercado Livre ainda exige homologação de sua integração oficial. Sem essa
   conexão, o sistema continua operando com os scrapers habilitados; Casas Bahia
   e Ponto permanecem candidatos a adaptadores diretos dedicados;

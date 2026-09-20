@@ -12,22 +12,9 @@ from dataclasses import dataclass
 
 from psycopg.types.json import Jsonb
 
+from pricing_intel.catalog import CATALOG_PRODUCTS, CatalogProduct
 from pricing_intel.db.pool import close_pool, connection
 from pricing_intel.matching.signature import compute_signature
-
-
-@dataclass(frozen=True, slots=True)
-class SeedVariant:
-    attributes: dict[str, str]
-    gtin: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class SeedProduct:
-    name: str
-    brand: str
-    category: str
-    variants: tuple[SeedVariant, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,118 +26,7 @@ class SeedSource:
     status: str = "candidate"
 
 
-def _iphone_variant(storage: str, color: str, *, gtin: str | None = None) -> SeedVariant:
-    return SeedVariant(
-        attributes={
-            "brand": "apple",
-            "model": "iphone_17",
-            "region": "br",
-            "storage_gb": storage,
-            "color": color,
-        },
-        gtin=gtin,
-    )
-
-
-def _device_variants(
-    *, brand: str, model: str, storages: tuple[str, ...], colors: tuple[str, ...]
-) -> tuple[SeedVariant, ...]:
-    return tuple(
-        SeedVariant(
-            attributes={
-                "brand": brand.lower(),
-                "model": model,
-                "region": "br",
-                "storage_gb": storage,
-                "color": color,
-            }
-        )
-        for storage in storages
-        for color in colors
-    )
-
-
-PRODUCTS = (
-    SeedProduct(
-        name="Apple iPhone 17",
-        brand="Apple",
-        category="smartphone",
-        variants=tuple(
-            _iphone_variant(
-                storage,
-                color,
-                gtin="195950643428" if (storage, color) == ("256", "Preto") else None,
-            )
-            for storage in ("256", "512")
-            for color in ("Preto", "Branco", "Azul-Névoa", "Lavanda", "Sálvia")
-        ),
-    ),
-    SeedProduct(
-        name="Apple iPhone 17 Pro",
-        brand="Apple",
-        category="smartphone",
-        variants=_device_variants(
-            brand="Apple",
-            model="iphone_17_pro",
-            storages=("256", "512", "1024"),
-            colors=("Prateado", "Laranja-Cósmico", "Azul-Intenso"),
-        ),
-    ),
-    SeedProduct(
-        name="Apple iPhone 17 Pro Max",
-        brand="Apple",
-        category="smartphone",
-        variants=_device_variants(
-            brand="Apple",
-            model="iphone_17_pro_max",
-            storages=("256", "512", "1024", "2048"),
-            colors=("Prateado", "Laranja-Cósmico", "Azul-Intenso"),
-        ),
-    ),
-    SeedProduct(
-        name="Samsung Galaxy S26",
-        brand="Samsung",
-        category="smartphone",
-        variants=_device_variants(
-            brand="Samsung",
-            model="galaxy_s26",
-            storages=("256", "512"),
-            colors=("Violeta", "Azul", "Preto", "Branco", "Prata", "Dourado"),
-        ),
-    ),
-    SeedProduct(
-        name="Samsung Galaxy S26+",
-        brand="Samsung",
-        category="smartphone",
-        variants=_device_variants(
-            brand="Samsung",
-            model="galaxy_s26_plus",
-            storages=("256", "512"),
-            colors=("Violeta", "Azul", "Preto", "Branco", "Prata", "Dourado"),
-        ),
-    ),
-    SeedProduct(
-        name="Samsung Galaxy S26 Ultra",
-        brand="Samsung",
-        category="smartphone",
-        variants=_device_variants(
-            brand="Samsung",
-            model="galaxy_s26_ultra",
-            storages=("256", "512", "1024"),
-            colors=("Violeta", "Azul", "Preto", "Branco", "Prata", "Dourado"),
-        ),
-    ),
-    SeedProduct(
-        name="Nimbus Phone X",
-        brand="Nimbus",
-        category="smartphone",
-        variants=(
-            SeedVariant({"storage_gb": "128", "color": "Preto"}, "7891234500018"),
-            SeedVariant({"storage_gb": "256", "color": "Preto"}, "7891234500025"),
-            SeedVariant({"storage_gb": "128", "color": "Azul"}, "7891234500032"),
-        ),
-    ),
-)
+PRODUCTS = CATALOG_PRODUCTS
 
 SOURCES = (
     SeedSource(
@@ -455,6 +331,12 @@ SOURCES = (
         adapter_name="catalog_reference",
     ),
     SeedSource(
+        name="Motorola Brasil",
+        base_url="https://www.motorola.com.br/premium-motorola",
+        kind="real",
+        adapter_name="catalog_reference",
+    ),
+    SeedSource(
         name="Mercado Livre",
         base_url="https://www.mercadolivre.com.br/",
         kind="real",
@@ -488,7 +370,7 @@ SOURCES = (
 )
 
 
-async def _seed_product(cur, product: SeedProduct) -> int:
+async def _seed_product(cur, product: CatalogProduct) -> int:
     await cur.execute("SELECT id FROM product WHERE name = %(name)s", {"name": product.name})
     row = await cur.fetchone()
     if row is None:

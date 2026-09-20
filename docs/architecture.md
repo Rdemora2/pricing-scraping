@@ -26,6 +26,8 @@ RabbitMQ e serviços cloud não são necessários no volume do MVP.
 - `api`: valida comandos, cria runs idempotentes e entrega read models;
 - `jobs`: traduz o job persistido na máquina de estados da coleta;
 - `collection`: busca HTML, extrai/normaliza e persiste observações/evidências;
+- `catalog`: mantém identidade, variantes e proveniência oficial sem armazenar
+  preços ou habilitar fontes;
 - `matching`: associa a oferta a variante existente sem criar catálogo a partir de
   texto não confiável;
 - `pricing`: filtra a população comparável e calcula estatísticas descritivas;
@@ -38,8 +40,9 @@ RabbitMQ e serviços cloud não são necessários no volume do MVP.
 1. `POST /sources/{id}/collect` verifica que a fonte está habilitada.
 2. Uma chave `source + minuto` converge cliques repetidos no mesmo run.
 3. O job persistido move o run de `pending` para `running`.
-4. O adaptador usa API oficial quando houver integração configurada; sem ela,
-   Scrapy visita somente a página revisada e limitada daquela fonte.
+4. A arquitetura reserva um ponto de extensão para API oficial, mas nenhuma API
+   comercial está credenciada nesta entrega; os adapters atuais iniciam por HTTP
+   e visitam somente a página revisada e limitada daquela fonte.
 5. A coleta HTTP prioriza JSON-LD e usa seletores DOM específicos para campos
    ausentes. Amazon, Americanas e Carrefour podem repetir essa extração em
    Chromium headless como último recurso quando a primeira resposta for
@@ -77,8 +80,9 @@ Nenhum candidato é promovido automaticamente a `source`.
 - **agregadora**: Zoom, 2aFinder e Buscapé adicionam amplitude, mas cada oferta é
   atribuída ao vendedor publicado e não ao comparador. Lead/afiliado nunca é
   seguido; a evidência permanece na página ou documento público de comparação;
-- **referência**: Apple Brasil e Samsung Brasil sustentam catálogo/especificações,
-  sem serem automaticamente tratadas como preço coletável;
+- **referência**: Apple Brasil, Samsung Brasil e Motorola Brasil sustentam
+  catálogo/especificações, sem serem automaticamente tratadas como preço
+  coletável;
 - **candidata**: radar Brave ou cadastro manual grava URL, confiança e motivo;
   nenhuma URL descoberta executa spider automaticamente;
 - **laboratório**: as fontes Nimbus validam o pipeline, mas nunca entram na visão

@@ -19,7 +19,9 @@ comparação?" e "como armazenamento e cor alteram o preço observado deste mode
 
 ## Escopo entregue
 
-- catálogo com 76 variantes de iPhone 17/Pro/Pro Max e Galaxy S26/S26+/Ultra;
+- catálogo tipado com 17 aparelhos e 221 variantes de mercado: linhas iPhone
+  16/17/18 Pro e Air, Galaxy S25/S26 e Motorola Edge 70 Pro, cada família com
+  referência oficial explícita;
 - adaptadores reais para Fast Shop, Samsung Shop, KaBuM!, Zoom, 2aFinder,
   Buscapé, Amazon, Americanas e Carrefour, com evidência, vendedor efetivo e
   atualização manual;
@@ -39,6 +41,11 @@ comparação?" e "como armazenamento e cor alteram o preço observado deste mode
 - painel para iniciar coletas, acompanhar fontes e explorar variantes.
 - landing page própria e workspace com visão geral, aparelhos, fontes, radar,
   cadastro de equipamento e cadastro de referência.
+
+Catálogo e cobertura são contratos diferentes. As seis famílias iPhone 17 e
+Galaxy S26 possuem a matriz de coletores homologada abaixo; os demais aparelhos
+entram prontos para monitoramento e qualificação, mas permanecem sem preço até que
+uma fonte real seja revisada e habilitada.
 
 ## População comparável
 

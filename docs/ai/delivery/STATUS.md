@@ -42,8 +42,10 @@ como gate externo.
 O `INC-08` reabre a superfície completa antes da entrega final. A revisão inicial
 identificou preço zero aceito em uma fronteira, estágio Docker incorreto para
 serviços sem browser, comando de teste em container não reproduzível e catálogo
-menor que as famílias oficialmente disponíveis. As correções são entregues em
-commits independentes e revalidadas no snapshot consolidado.
+menor que as famílias oficialmente disponíveis. O catálogo agora centraliza 17
+aparelhos e 221 variantes de mercado com proveniência oficial; modelos ainda sem
+adapter permanecem explicitamente sem coleta, sem preços fictícios. As correções
+são entregues em commits independentes e revalidadas no snapshot consolidado.
 
 O reviewer independente aprovou localmente o ciclo 2 do INC-05 no fingerprint
 `fadb3ec6d99b17b80386d1296655a3ef65be8f3523e59bd2760133dcb64d0b75`, sem
