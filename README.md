@@ -219,6 +219,9 @@ preservar histórico de coletas.
   e Ponto permanecem candidatos a adaptadores diretos dedicados;
 - candidatos da busca ampla exigem revisão humana e adaptador dedicado antes de
   qualquer coleta;
+- requests HTTP declaram o coletor e negociam HTML em português com cabeçalhos
+  estáveis de representação; não enviam fingerprint de Chrome nem perfil de
+  usuário autenticado;
 - a API não possui autenticação e deve permanecer restrita ao loopback;
 - recomendação de preço, demanda, elasticidade e automação comercial estão fora
   do escopo;

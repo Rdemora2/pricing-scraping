@@ -15,6 +15,11 @@ SPIDER_MODULES = ["pricing_intel.collection.spiders"]
 NEWSPIDER_MODULE = "pricing_intel.collection.spiders"
 
 USER_AGENT = DECLARED_USER_AGENT
+DEFAULT_REQUEST_HEADERS = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.5",
+    "Cache-Control": "no-cache",
+}
 
 # Ethical/responsible-scraping defaults (brief section 9): obey robots.txt,
 # throttle adaptively, retry transient failures, never hammer a domain.

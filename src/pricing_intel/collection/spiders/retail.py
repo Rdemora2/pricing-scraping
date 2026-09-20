@@ -153,9 +153,8 @@ class AmazonSpider(_RetailSpider):
     )
     custom_settings = {  # noqa: RUF012 - Scrapy class contract
         "CLOSESPIDER_PAGECOUNT": 3,
-        # Amazon varies the buy box by request headers. Keep rendering
-        # minimal and do not emulate a signed-in customer profile.
-        "DEFAULT_REQUEST_HEADERS": {},
+        # Keep rendering minimal and do not emulate a signed-in customer
+        # profile. The global, transparent representation headers still apply.
         "COMPRESSION_ENABLED": False,
     }
 

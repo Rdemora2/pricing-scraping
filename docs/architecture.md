@@ -108,6 +108,11 @@ ofertas agregadas por página, limitando também a multiplicação de evidência
 laboratório opta explicitamente por HTTP e rede privada. CAPTCHA, login e bloqueios
 não são contornados.
 
+O perfil HTTP mantém identidade automatizada declarada e adiciona apenas
+negociação estável de representação: HTML/XML, preferência `pt-BR` e revalidação
+de cache. Cabeçalhos de fingerprint (`Sec-CH-UA`), cookies de usuário e um
+user-agent falso de Chrome não fazem parte do coletor.
+
 O browser é opt-in por request e roda com um único contexto e uma página por
 worker. Sua política própria bloqueia recursos visuais e qualquer subrequest fora
 da allowlist HTTPS da fonte; os hosts auxiliares também passam por pré-validação
