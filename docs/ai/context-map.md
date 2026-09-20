@@ -4,16 +4,16 @@ Este arquivo é um índice, não uma cópia do código. O objetivo é apontar on
 
 | Necessidade | Fonte primária | Teste/check | Proprietário |
 | --- | --- | --- | --- |
-| Inicialização da aplicação | `TODO` | `TODO` | `TODO` |
-| Rotas/endpoints | `TODO` | `TODO` | `TODO` |
-| Autenticação/autorização | `TODO` | `TODO` | `TODO` |
-| Modelo e migrações de dados | `TODO` | `TODO` | `TODO` |
-| Jobs e integrações externas | `TODO` | `TODO` | `TODO` |
-| Tratamento de erros | `TODO` | `TODO` | `TODO` |
-| Observabilidade | `TODO` | `TODO` | `TODO` |
-| Testes unitários | `TODO` | `TODO` | `TODO` |
-| Testes integração/e2e | `TODO` | `TODO` | `TODO` |
-| Deploy e rollback | `TODO` | `TODO` | `TODO` |
+| Inicialização da aplicação | `compose.yaml`, `Dockerfile`, `frontend/Dockerfile` | `docker compose config --quiet && docker compose build` | Plataforma |
+| Rotas/endpoints | `src/pricing_intel/api/main.py`, `api/routers/` | `uv run pytest tests/unit` | Backend |
+| Autenticação/autorização | modo local sem auth; bind loopback em `compose.yaml` | inspeção do Compose e browser same-origin | Plataforma |
+| Modelo e migrações de dados | `domain/models.py`, `migrations/versions/` | Alembic + testes de domínio | Backend |
+| Jobs e integrações externas | `jobs/`, `collection/`, `lab/sources/` | smoke API/worker/labs | Coleta |
+| Tratamento de erros | `collection/extraction.py`, `jobs/tasks.py`, routers | testes de entradas inválidas e estados | Backend |
+| Observabilidade | `logging.py`, `CollectionRun`, `/runs/{id}` | logs estruturados + smoke | Backend |
+| Testes unitários | `tests/unit/` | `uv run pytest tests/unit` | Backend |
+| Testes integração/e2e | `docs/ai/delivery/evidence/` | Compose + browser | Plataforma |
+| Deploy e rollback | somente local: `README.md`, `compose.yaml` | build/smoke; sem deploy | Plataforma |
 
 ## Convenções estáveis
 
@@ -23,7 +23,10 @@ Registre somente convenções que são verdadeiras para todo o projeto. Para reg
 
 | Termo | Significado no produto | Fonte |
 | --- | --- | --- |
-| `TODO` | `TODO` | `TODO` |
+| `fonte` | domínio conhecido que pode ser candidato, habilitado ou desabilitado | `domain/enums.py` |
+| `oferta` | anúncio de um vendedor em uma fonte | `domain/models.py` |
+| `observação` | estado temporal de preço e condições de uma oferta | `domain/models.py` |
+| `evidência` | excerpt/hash/versionamento que sustenta uma extração | migration inicial |
 
 ## Decisões importantes
 

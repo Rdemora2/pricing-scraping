@@ -1,7 +1,7 @@
 [project]
 name = "pricing-intel"
 version = "0.1.0"
-description = "Add your description here"
+description = "Local, explainable price-intelligence platform built from discovered offers rather than manually registered URLs."
 requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.20.0",
@@ -13,9 +13,6 @@ dependencies = [
     "structlog>=26.1.0",
     "uvicorn[standard]>=0.53.0",
 ]
-
-[project.scripts]
-pricing-intel = "pricing_intel:main"
 
 [build-system]
 requires = ["uv_build>=0.12.11,<0.13.0"]
@@ -33,3 +30,32 @@ dev = [
     "time-machine>=3.5.1",
     "ty>=0.0.82",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+# Governance kit files are vendored/managed by the Valiant bootstrap tool,
+# not authored to this project's lint rules.
+extend-exclude = [".codex", ".claude", ".agents", "scripts/check_commit_policy.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4", "RUF"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["pricing_intel"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+addopts = "-ra"
+
+[tool.coverage.run]
+source = ["src/pricing_intel"]
+
+[tool.ty.environment]
+root = ["src", "."]
+
+[tool.ty.src]
+exclude = [".codex", ".claude", ".agents"]

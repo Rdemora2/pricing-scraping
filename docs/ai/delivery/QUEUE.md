@@ -5,6 +5,10 @@ ferramenta ou documentação do produto; esta fila é o índice operacional loca
 
 | Ordem | Unidade | Resultado/aceite | Git root | Depende de | Estado |
 | ---: | --- | --- | --- | --- | --- |
+| 1 | `INC-01` | Backend Python estabilizado, documentado e coberto por testes úteis; stack de API, worker, PostgreSQL e fontes sintéticas executa via Docker Compose | `.` | — | `LOCAL_VERIFIED_WITH_EXTERNAL_GATE` |
+| 2 | `INC-02` | Frontend React responsivo e acessível permite disparar coleta, acompanhar execução e consultar comparações reais da API | `.` | `INC-01` | `LOCAL_VERIFIED_WITH_EXTERNAL_GATE` |
+| 3 | `INC-03` | Fluxo completo local validado, documentação reconciliada e evidência/rollback registrados | `.` | `INC-02` | `LOCAL_VERIFIED_WITH_EXTERNAL_GATE` |
+| 4 | `INC-04` | Catálogo Apple/Samsung, fontes reais governadas, descoberta ampla, proteção de rede e portal responsivo separando mercado real do laboratório | `.` | — | `VERIFIED` |
 
 Fila vazia significa governança ainda não adotada; não invente unidades.
 
