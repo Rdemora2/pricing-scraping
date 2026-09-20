@@ -23,7 +23,12 @@ async def get_source(source_id: UUID) -> Source | None:
 
 
 async def upsert_discovered_page(
-    *, source_id: UUID, url: str, canonical_url: str, page_type: PageType
+    *,
+    source_id: UUID,
+    url: str,
+    canonical_url: str,
+    page_type: PageType,
+    status: str = "pending",
 ) -> DiscoveredPage:
     async with connection() as conn, conn.cursor(row_factory=class_row(DiscoveredPage)) as cur:
         await cur.execute(
@@ -33,6 +38,7 @@ async def upsert_discovered_page(
                 "url": url,
                 "canonical_url": canonical_url,
                 "page_type": page_type.value,
+                "status": status,
             },
         )
         page = await cur.fetchone()

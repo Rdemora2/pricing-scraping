@@ -45,6 +45,7 @@ class PostgresPipeline:
             url=adapter["url"],
             canonical_url=adapter["canonical_url"],
             page_type=adapter["page_type"],
+            status=adapter["status"],
         )
 
     def _handle_listing(self, adapter: ItemAdapter, spider) -> None:

@@ -6,6 +6,7 @@ class DiscoveredPageItem(scrapy.Item):
     url = scrapy.Field()
     canonical_url = scrapy.Field()
     page_type = scrapy.Field()
+    status = scrapy.Field()
 
 
 class ListingItem(scrapy.Item):

@@ -43,7 +43,13 @@ class SyncDb:
         self._conn.close()
 
     def upsert_discovered_page(
-        self, *, source_id: UUID, url: str, canonical_url: str, page_type: str
+        self,
+        *,
+        source_id: UUID,
+        url: str,
+        canonical_url: str,
+        page_type: str,
+        status: str = "pending",
     ) -> DiscoveredPage:
         with self._conn.cursor(row_factory=class_row(DiscoveredPage)) as cur:
             cur.execute(
@@ -53,6 +59,7 @@ class SyncDb:
                     "url": url,
                     "canonical_url": canonical_url,
                     "page_type": page_type,
+                    "status": status,
                 },
             )
             page = cur.fetchone()

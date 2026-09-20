@@ -19,8 +19,8 @@ GET_SOURCE_BY_ID = """
 """
 
 UPSERT_DISCOVERED_PAGE = """
-    INSERT INTO discovered_page (source_id, url, canonical_url, page_type)
-    VALUES (%(source_id)s, %(url)s, %(canonical_url)s, %(page_type)s)
+    INSERT INTO discovered_page (source_id, url, canonical_url, page_type, status)
+    VALUES (%(source_id)s, %(url)s, %(canonical_url)s, %(page_type)s, %(status)s)
     ON CONFLICT (source_id, canonical_url)
     DO UPDATE SET last_seen_at = now()
     RETURNING id, source_id, url, canonical_url, page_type, status,

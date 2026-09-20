@@ -43,6 +43,7 @@ class LabStoreSpider(scrapy.Spider):
             url=response.url,
             canonical_url=canonicalize(response.url),
             page_type="category",
+            status="collected",
         )
 
         for href in response.css(self.product_link_css).getall():
@@ -52,6 +53,7 @@ class LabStoreSpider(scrapy.Spider):
                 url=product_url,
                 canonical_url=canonicalize(product_url),
                 page_type="product",
+                status="pending",
             )
             yield response.follow(product_url, callback=self.parse_product)
 
