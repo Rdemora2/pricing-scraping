@@ -1,7 +1,7 @@
 name: pricing-intel
 
 x-app-environment: &app-environment
-  DATABASE_URL: postgresql://${POSTGRES_USER:-pricing_intel}:${POSTGRES_PASSWORD:-pricing_intel_local}@postgres:5432/${POSTGRES_DB:-pricing_intel}
+  DATABASE_URL: postgresql://${POSTGRES_USER:-pricing_intel}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD_required}@postgres:5432/${POSTGRES_DB:-pricing_intel}
   ENVIRONMENT: local
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   LAB_STORE_A_BASE_URL: http://lab-store-a:8000
@@ -23,7 +23,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-pricing_intel}
       POSTGRES_USER: ${POSTGRES_USER:-pricing_intel}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pricing_intel_local}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD_required}
     healthcheck:
       test:
         - CMD-SHELL

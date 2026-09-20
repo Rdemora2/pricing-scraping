@@ -13,6 +13,13 @@ opcional e usa uma chave de provedor configurada somente no backend.
 
 Requisitos: Docker com Compose v2 e aproximadamente 2 GB livres de memória.
 
+Crie a configuração local e troque o placeholder de senha antes da primeira
+execução:
+
+```bash
+cp .env.example .env
+```
+
 ```bash
 docker compose up --build
 ```
@@ -73,9 +80,9 @@ docker compose build
 
 ## Configuração
 
-Os defaults locais funcionam sem `.env`. Para trocar portas ou credenciais do
-banco local, copie `.env.example` para `.env` e ajuste somente valores locais.
-Nunca comite `.env` ou credenciais reais.
+O Compose exige `POSTGRES_PASSWORD` para não incorporar senha no histórico. Copie
+`.env.example` para `.env`, defina uma senha exclusivamente local e nunca comite
+esse arquivo ou credenciais reais. As demais variáveis possuem defaults locais.
 
 Variáveis principais:
 
