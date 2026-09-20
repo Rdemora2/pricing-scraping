@@ -33,7 +33,9 @@ Acesse:
 Na interface, entre em **Inteligência de mercado**, escolha aparelho, capacidade
 e cor e use **Atualizar mercado**. A API cria uma execução por fonte aplicável; o
 worker coleta as páginas revisadas e o painel atualiza varejistas distintos,
-canais de evidência, faixa de preço e exclusões justificadas.
+canais de evidência, faixa de preço e exclusões justificadas. A leitura executiva
+do aparelho consolida as variantes e compara armazenamentos, custo por GB e o
+efeito relativo das cores sem misturar capacidades diferentes.
 
 As portas publicadas ficam presas a `127.0.0.1`. PostgreSQL e lojas sintéticas não
 são expostos no host.
@@ -127,6 +129,7 @@ Variáveis principais:
 | `GET` | `/runs/{run_id}` | acompanha estado e estatísticas |
 | `GET` | `/products` | lista produtos canônicos |
 | `GET` | `/products/{product_id}/variants` | lista variantes |
+| `GET` | `/products/{product_id}/intelligence` | consolida inteligência por armazenamento e cor |
 | `GET` | `/variants/{variant_id}/comparison` | retorna população, faixa e exclusões |
 | `GET` | `/discovery/candidates` | lista referências encontradas para revisão |
 | `POST` | `/discovery/search` | pesquisa a web sem habilitar novas fontes |
@@ -164,6 +167,18 @@ de Amazon, Americanas e Carrefour. O Galaxy S26 base Dourado permanece em cinco:
 própria Samsung classifica Dourado/Prata como cores exclusivas da loja oficial, e
 a coleta pública atual não expõe um sexto vendedor novo, disponível e exato sem
 duplicar a Samsung ou misturar variante.
+
+## Inteligência por aparelho
+
+A central parte das comparações exatas de cada variante e só depois agrega o
+modelo. O preço representativo de um armazenamento é a mediana das variantes de
+cor observadas; o custo-benefício é o menor preço representativo por GB. Ele só é
+declarado com duas cores por capacidade, duas capacidades elegíveis e três
+varejistas. O índice de cor compara cada cor com a mediana das cores do mesmo
+armazenamento e consolida os desvios percentuais. A resposta informa cobertura do catálogo,
+tamanho da amostra e metodologia. Quando faltam duas capacidades ou combinações
+equivalentes de cor, a recomendação correspondente permanece explicitamente em
+formação.
 
 ## Parada, rollback e dados locais
 

@@ -29,6 +29,8 @@ RabbitMQ e serviços cloud não são necessários no volume do MVP.
 - `matching`: associa a oferta a variante existente sem criar catálogo a partir de
   texto não confiável;
 - `pricing`: filtra a população comparável e calcula estatísticas descritivas;
+- `pricing/intelligence`: agrega comparações exatas em indicadores explicáveis de
+  armazenamento, cor, cobertura e custo por GB;
 - `frontend`: representa estados reais da API, sem dados decorativos.
 
 ## Fluxo de dados
@@ -49,6 +51,8 @@ RabbitMQ e serviços cloud não são necessários no volume do MVP.
 8. O run termina em `succeeded`, `partial` ou `failed`.
 9. A consulta usa somente a observação mais recente por oferta ativa e uma
    observação por varejista; evidência direta precede uma cópia agregada.
+10. A inteligência de aparelho carrega todas as ofertas atuais em uma consulta,
+    calcula cada variante isoladamente e somente então agrega dimensões.
 
 A descoberta ampla é um fluxo paralelo: a API consulta um provedor oficial de
 busca, salva URLs como `source_candidate` e atribui um nível inicial de confiança.

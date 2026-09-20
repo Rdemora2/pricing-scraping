@@ -2,7 +2,7 @@
 
 **Atualizado em:** `2026-09-20`
 **Estado global:** `LOCAL_VERIFIED_WITH_EXTERNAL_GATE`
-**Unidade ativa:** `INC-06` — revisão independente externa pendente
+**Unidade ativa:** `INC-07A` — revisão independente externa pendente
 
 O roadmap conclui o laboratório e avança o portal local de inteligência de
 preços com fontes reais. A entrega permanece limitada ao ambiente local; não
@@ -25,6 +25,13 @@ O `INC-06` adiciona Amazon, Americanas e duas ofertas Carrefour ao caso iPhone 1
 API oficial opcional e, sem conexão, segue por JSON-LD/DOM HTTP; somente resposta
 permitida e insuficiente pode acionar Chromium. Respostas de controle de acesso
 não acionam browser.
+
+O `INC-07A` entrega a primeira central de inteligência por aparelho. Ela calcula
+primeiro cada variante exata e depois agrega cobertura, faixa, custo por GB e
+diferenças de cor normalizadas por armazenamento. Recomendações permanecem
+ausentes quando a amostra não sustenta a comparação. Testes, análise estática,
+build, imagens Docker e navegação desktop/mobile estão verdes; a revisão
+independente permanece como gate externo.
 
 O reviewer independente aprovou localmente o ciclo 2 do INC-05 no fingerprint
 `fadb3ec6d99b17b80386d1296655a3ef65be8f3523e59bd2760133dcb64d0b75`, sem

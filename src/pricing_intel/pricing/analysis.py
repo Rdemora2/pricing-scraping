@@ -60,7 +60,7 @@ def _median_minor_units(sorted_prices: list[int]) -> int:
     return int(average.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
-def _retailer_key(name: str) -> str:
+def retailer_identity(name: str) -> str:
     """Collapse known trading-name aliases without merging unrelated sellers."""
     # Aggregators may append their sales channel for UI transparency. The
     # retailer identity remains the seller before the middle-dot separator.
@@ -157,7 +157,7 @@ def compare_variant(
             str(item.offer_id),
         ),
     ):
-        seller_key = _retailer_key(snapshot.seller_name)
+        seller_key = retailer_identity(snapshot.seller_name)
         if seller_key in deduplicated:
             excluded.append(
                 ExcludedOffer(
@@ -179,7 +179,7 @@ def compare_variant(
         currency=reference_currency,
         included_offer_count=len(included),
         source_count=len({s.source_name for s in included}),
-        retailer_count=len({_retailer_key(s.seller_name) for s in included}),
+        retailer_count=len({retailer_identity(s.seller_name) for s in included}),
         min_price_minor_units=prices[0],
         median_price_minor_units=_median_minor_units(prices),
         max_price_minor_units=prices[-1],

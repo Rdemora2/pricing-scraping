@@ -11,12 +11,14 @@ from pricing_intel.api.schemas import (
     ComparisonResponse,
     ProductCreateRequest,
     ProductDetailResponse,
+    ProductIntelligenceResponse,
     ProductResponse,
     VariantResponse,
 )
 from pricing_intel.db.queries import catalog as catalog_q
 from pricing_intel.db.queries import offers as offers_q
 from pricing_intel.pricing.analysis import compare_variant
+from pricing_intel.pricing.intelligence import analyze_product
 
 router = APIRouter(tags=["catalog"])
 
@@ -75,6 +77,17 @@ async def create_product(payload: ProductCreateRequest, request: Request) -> Pro
 async def list_variants(product_id: UUID) -> list[VariantResponse]:
     variants = await catalog_q.list_variants_for_product(product_id)
     return [_variant_response(variant) for variant in variants]
+
+
+@router.get("/products/{product_id}/intelligence", response_model=ProductIntelligenceResponse)
+async def get_product_intelligence(product_id: UUID) -> ProductIntelligenceResponse:
+    product = await catalog_q.get_product(product_id)
+    if product is None:
+        raise HTTPException(status_code=404, detail="product not found")
+    variants = await catalog_q.list_variants_for_product(product_id)
+    snapshots = await offers_q.list_latest_snapshots_for_product(product_id)
+    result = analyze_product(product_id, variants, snapshots)
+    return ProductIntelligenceResponse.from_result(result, generated_at=datetime.now(UTC))
 
 
 @router.get("/variants/{variant_id}/comparison", response_model=ComparisonResponse)

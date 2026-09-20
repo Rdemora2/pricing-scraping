@@ -8,6 +8,7 @@ stable even if the internal representation changes.
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -15,6 +16,12 @@ from pydantic import BaseModel, Field, field_validator
 from pricing_intel.domain.models import PaymentTerms, ShippingTerms
 from pricing_intel.domain.money import Money
 from pricing_intel.pricing.analysis import ComparisonResult
+from pricing_intel.pricing.intelligence import (
+    ColorIntelligence,
+    ProductIntelligence,
+    StorageIntelligence,
+    VariantIntelligence,
+)
 
 
 def _format_money(minor_units: int | None, currency: str) -> str | None:
@@ -194,5 +201,166 @@ class ComparisonResponse(BaseModel):
             ],
             oldest_observation_at=result.oldest_observation_at,
             newest_observation_at=result.newest_observation_at,
+            generated_at=generated_at,
+        )
+
+
+class VariantIntelligenceResponse(BaseModel):
+    variant_id: UUID
+    storage_gb: int
+    color: str
+    min_price: str
+    median_price: str
+    max_price: str
+    offer_count: int
+    retailer_count: int
+
+    @classmethod
+    def from_result(
+        cls, result: VariantIntelligence, *, currency: str
+    ) -> VariantIntelligenceResponse:
+        return cls(
+            variant_id=result.variant_id,
+            storage_gb=result.storage_gb,
+            color=result.color,
+            min_price=_format_money(result.min_price_minor_units, currency) or "0.00",
+            median_price=_format_money(result.median_price_minor_units, currency) or "0.00",
+            max_price=_format_money(result.max_price_minor_units, currency) or "0.00",
+            offer_count=result.offer_count,
+            retailer_count=result.retailer_count,
+        )
+
+
+class StorageIntelligenceResponse(BaseModel):
+    storage_gb: int
+    catalog_variant_count: int
+    observed_variant_count: int
+    min_price: str | None
+    representative_price: str | None
+    max_price: str | None
+    price_per_gb: str | None
+
+    @classmethod
+    def from_result(
+        cls, result: StorageIntelligence, *, currency: str
+    ) -> StorageIntelligenceResponse:
+        return cls(
+            storage_gb=result.storage_gb,
+            catalog_variant_count=result.catalog_variant_count,
+            observed_variant_count=result.observed_variant_count,
+            min_price=_format_money(result.min_price_minor_units, currency),
+            representative_price=_format_money(result.representative_price_minor_units, currency),
+            max_price=_format_money(result.max_price_minor_units, currency),
+            price_per_gb=_format_money(result.price_per_gb_minor_units, currency),
+        )
+
+
+class ColorIntelligenceResponse(BaseModel):
+    color: str
+    catalog_variant_count: int
+    observed_variant_count: int
+    comparable_storage_count: int
+    min_price: str | None
+    representative_price: str | None
+    max_price: str | None
+    relative_price_delta_pct: str | None
+
+    @classmethod
+    def from_result(cls, result: ColorIntelligence, *, currency: str) -> ColorIntelligenceResponse:
+        delta = (
+            str((Decimal(result.relative_price_delta_bps) / Decimal(100)).quantize(Decimal("0.01")))
+            if result.relative_price_delta_bps is not None
+            else None
+        )
+        return cls(
+            color=result.color,
+            catalog_variant_count=result.catalog_variant_count,
+            observed_variant_count=result.observed_variant_count,
+            comparable_storage_count=result.comparable_storage_count,
+            min_price=_format_money(result.min_price_minor_units, currency),
+            representative_price=_format_money(result.representative_price_minor_units, currency),
+            max_price=_format_money(result.max_price_minor_units, currency),
+            relative_price_delta_pct=delta,
+        )
+
+
+class ProductIntelligenceResponse(BaseModel):
+    product_id: UUID
+    currency: str
+    catalog_variant_count: int
+    observed_variant_count: int
+    coverage_pct: int
+    total_offer_count: int
+    retailer_count: int
+    sample_status: str
+    storages_gb: list[int]
+    colors: list[str]
+    min_price: str | None
+    max_price: str | None
+    cheapest_variant: VariantIntelligenceResponse | None
+    most_expensive_variant: VariantIntelligenceResponse | None
+    best_value_storage: StorageIntelligenceResponse | None
+    cheapest_storage: StorageIntelligenceResponse | None
+    most_expensive_storage: StorageIntelligenceResponse | None
+    cheapest_color: ColorIntelligenceResponse | None
+    most_expensive_color: ColorIntelligenceResponse | None
+    storage_analysis: list[StorageIntelligenceResponse]
+    color_analysis: list[ColorIntelligenceResponse]
+    methodology: list[str]
+    generated_at: datetime
+
+    @classmethod
+    def from_result(
+        cls, result: ProductIntelligence, *, generated_at: datetime
+    ) -> ProductIntelligenceResponse:
+        currency = result.currency
+
+        def variant(item: VariantIntelligence | None) -> VariantIntelligenceResponse | None:
+            return (
+                VariantIntelligenceResponse.from_result(item, currency=currency) if item else None
+            )
+
+        def storage(item: StorageIntelligence | None) -> StorageIntelligenceResponse | None:
+            return (
+                StorageIntelligenceResponse.from_result(item, currency=currency) if item else None
+            )
+
+        def color(item: ColorIntelligence | None) -> ColorIntelligenceResponse | None:
+            return ColorIntelligenceResponse.from_result(item, currency=currency) if item else None
+
+        return cls(
+            product_id=result.product_id,
+            currency=currency,
+            catalog_variant_count=result.catalog_variant_count,
+            observed_variant_count=result.observed_variant_count,
+            coverage_pct=result.coverage_pct,
+            total_offer_count=result.total_offer_count,
+            retailer_count=result.retailer_count,
+            sample_status=result.sample_status,
+            storages_gb=list(result.storages_gb),
+            colors=list(result.colors),
+            min_price=_format_money(result.min_price_minor_units, currency),
+            max_price=_format_money(result.max_price_minor_units, currency),
+            cheapest_variant=variant(result.cheapest_variant),
+            most_expensive_variant=variant(result.most_expensive_variant),
+            best_value_storage=storage(result.best_value_storage),
+            cheapest_storage=storage(result.cheapest_storage),
+            most_expensive_storage=storage(result.most_expensive_storage),
+            cheapest_color=color(result.cheapest_color),
+            most_expensive_color=color(result.most_expensive_color),
+            storage_analysis=[
+                StorageIntelligenceResponse.from_result(item, currency=currency)
+                for item in result.storage_analysis
+            ],
+            color_analysis=[
+                ColorIntelligenceResponse.from_result(item, currency=currency)
+                for item in result.color_analysis
+            ],
+            methodology=[
+                "Cada variante compara somente ofertas novas, disponíveis e na mesma moeda.",
+                "O preço representativo é a mediana das variantes observadas em cada grupo.",
+                "O índice de cor mede o desvio contra a mediana das cores da mesma capacidade.",
+                "Melhor custo-benefício exige duas cores por capacidade, duas capacidades e três varejistas.",
+            ],
             generated_at=generated_at,
         )

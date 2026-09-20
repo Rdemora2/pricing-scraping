@@ -13,9 +13,9 @@ mostrar exatamente quais observações sustentam cada indicador.
 ## Usuário e decisão inicial
 
 O primeiro usuário é um analista de pricing ou desenvolvedor avaliando a posição
-de uma variante em um conjunto pequeno de fontes. A primeira decisão suportada é:
+de uma variante e de um aparelho completo no mercado. As decisões suportadas são:
 "qual é a faixa anunciada agora e por que cada oferta entrou ou saiu da
-comparação?".
+comparação?" e "como armazenamento e cor alteram o preço observado deste modelo?".
 
 ## Escopo entregue
 
@@ -34,6 +34,8 @@ comparação?".
   headless limitado como último recurso para fontes JavaScript revisadas;
 - matching determinístico por GTIN e, quando o GTIN está ausente, atributos;
 - comparação de preço atual com mínimo, mediana, máximo e exclusões;
+- leitura executiva por aparelho com cobertura, custo por GB, armazenamento de
+  melhor valor e índice de preço de cor normalizado por capacidade;
 - painel para iniciar coletas, acompanhar fontes e explorar variantes.
 - landing page própria e workspace com visão geral, aparelhos, fontes, radar,
   cadastro de equipamento e cadastro de referência.
@@ -58,6 +60,22 @@ Quando nenhuma oferta satisfaz a população, a resposta é explicitamente "dado
 insuficientes". **Varejistas distintos** mede diversidade comercial; **canais de
 evidência** mede quantas fontes sustentam as ofertas. Nenhuma das duas representa
 cobertura total da internet.
+
+## Inteligência consolidada do aparelho
+
+O modelo nunca agrega anúncios brutos diretamente. Primeiro, cada variante exata
+é filtrada pela população comparável e deduplicada por varejista. Depois:
+
+1. armazenamento usa a mediana dos preços medianos das cores observadas;
+2. custo por GB divide esse preço representativo pela capacidade;
+3. cor é comparada à mediana das cores dentro do mesmo armazenamento;
+4. cobertura informa quantas variantes canônicas possuem observações válidas;
+5. custo-benefício exige duas cores por capacidade, duas capacidades e três
+   varejistas; o índice de cor exige ao menos duas capacidades comparáveis.
+
+Esse contrato evita concluir que uma cor é barata apenas porque apareceu em uma
+capacidade menor. O painel expõe método, amostra e estados `sem dados`, `limitada`,
+`em formação` ou `robusta`.
 
 ## Meta de amostragem
 
