@@ -2,7 +2,7 @@
 
 **Atualizado em:** `2026-09-20`
 **Estado global:** `LOCAL_VERIFIED_WITH_EXTERNAL_GATE`
-**Unidade ativa:** `INC-08` — auditoria e endurecimento em andamento
+**Unidade ativa:** `INC-08` — validação local concluída; revisão independente pendente
 
 O roadmap conclui o laboratório e avança o portal local de inteligência de
 preços com fontes reais. A entrega permanece limitada ao ambiente local; não
@@ -46,6 +46,10 @@ menor que as famílias oficialmente disponíveis. O catálogo agora centraliza 1
 aparelhos e 221 variantes de mercado com proveniência oficial; modelos ainda sem
 adapter permanecem explicitamente sem coleta, sem preços fictícios. As correções
 são entregues em commits independentes e revalidadas no snapshot consolidado.
+O snapshot final soma 102 testes unitários verdes, 2 integrações executadas no
+container dedicado, 72% de cobertura global, pacote e imagens construídos, stack
+completa saudável e auditoria WCAG sem violações confirmadas em mobile. O gate de
+revisão independente permanece externo e impede declarar merge concluído.
 
 O reviewer independente aprovou localmente o ciclo 2 do INC-05 no fingerprint
 `fadb3ec6d99b17b80386d1296655a3ef65be8f3523e59bd2760133dcb64d0b75`, sem
