@@ -118,6 +118,10 @@ summary:focus-visible {
   text-transform: uppercase;
 }
 
+.product-card small {
+  color: #929aa6;
+}
+
 .landing-proof strong {
   display: block;
   margin-top: 54px;
@@ -831,6 +835,10 @@ summary:focus-visible {
   line-height: 1.5;
 }
 
+.intelligence-card-signal p {
+  color: #25300f;
+}
+
 .dimension-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -951,7 +959,7 @@ summary:focus-visible {
 }
 
 .metric-card-featured p {
-  color: #6d706f;
+  color: #565b59;
 }
 
 .metric-card > strong {
@@ -977,6 +985,11 @@ summary:focus-visible {
   font-family: ui-monospace, monospace;
   color: var(--muted);
   font-size: 0.7rem;
+}
+
+.metric-card-featured small,
+.metric-card-featured .metric-index {
+  color: #5e6367;
 }
 
 .workspace-grid {

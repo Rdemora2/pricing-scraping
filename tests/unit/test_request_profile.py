@@ -10,7 +10,9 @@ def test_http_profile_negotiates_html_in_portuguese_without_impersonation() -> N
     }
     assert "bot" in settings.USER_AGENT
     assert "Mozilla" not in settings.USER_AGENT
-    assert not any(name.casefold().startswith("sec-ch-ua") for name in settings.DEFAULT_REQUEST_HEADERS)
+    assert not any(
+        name.casefold().startswith("sec-ch-ua") for name in settings.DEFAULT_REQUEST_HEADERS
+    )
 
 
 def test_amazon_inherits_the_governed_http_profile() -> None:

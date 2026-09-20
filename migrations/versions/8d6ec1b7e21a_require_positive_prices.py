@@ -16,8 +16,7 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     op.execute(
-        "ALTER TABLE price_observation "
-        "DROP CONSTRAINT price_observation_price_minor_units_check"
+        "ALTER TABLE price_observation DROP CONSTRAINT price_observation_price_minor_units_check"
     )
     op.execute(
         "ALTER TABLE price_observation ADD CONSTRAINT price_observation_price_positive "
@@ -26,9 +25,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute(
-        "ALTER TABLE price_observation DROP CONSTRAINT price_observation_price_positive"
-    )
+    op.execute("ALTER TABLE price_observation DROP CONSTRAINT price_observation_price_positive")
     op.execute(
         "ALTER TABLE price_observation ADD CONSTRAINT "
         "price_observation_price_minor_units_check CHECK (price_minor_units >= 0)"
