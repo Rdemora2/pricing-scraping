@@ -1,0 +1,251 @@
+{
+  "schema_version": 1,
+  "managed_by": "valiant-codex-kit",
+  "routing": {
+    "critical_signals": [
+      "production",
+      "deploy",
+      "secret",
+      "privilege",
+      "irreversible"
+    ],
+    "high_signals": [
+      "auth",
+      "pii",
+      "migration",
+      "persistence",
+      "concurrency",
+      "infrastructure",
+      "dependency",
+      "trust-boundary",
+      "multi-root",
+      "architecture-complex",
+      "contract-conflict",
+      "diagnosis-exhausted"
+    ],
+    "medium_signals": [
+      "behavior",
+      "public-contract",
+      "refactor",
+      "multi-module",
+      "integration"
+    ],
+    "path_rules": [
+      {
+        "risk": "high",
+        "patterns": [
+          ".codex/**",
+          ".agents/**",
+          ".githooks/**"
+        ],
+        "signals": [
+          "trust-boundary"
+        ]
+      },
+      {
+        "risk": "high",
+        "patterns": [
+          ".github/workflows/**",
+          "infra/**",
+          "infrastructure/**",
+          "terraform/**",
+          "k8s/**"
+        ],
+        "signals": [
+          "infrastructure"
+        ]
+      },
+      {
+        "risk": "high",
+        "patterns": [
+          "**/migrations/**"
+        ],
+        "signals": [
+          "migration"
+        ]
+      },
+      {
+        "risk": "high",
+        "patterns": [
+          "**/auth/**"
+        ],
+        "signals": [
+          "auth"
+        ]
+      },
+      {
+        "risk": "medium",
+        "patterns": [
+          "*.go",
+          "*.py",
+          "*.rs",
+          "*.java",
+          "*.kt",
+          "*.cs",
+          "*.php",
+          "*.js",
+          "*.jsx",
+          "*.ts",
+          "*.tsx",
+          "src/**",
+          "app/**",
+          "apps/**",
+          "cmd/**",
+          "internal/**",
+          "pkg/**"
+        ]
+      }
+    ],
+    "model_escalations": [
+      {
+        "signals": [
+          "architecture-complex",
+          "contract-conflict"
+        ],
+        "roles": [
+          "reviewer"
+        ],
+        "model": "gpt-6-astra/high"
+      },
+      {
+        "signals": [
+          "diagnosis-exhausted"
+        ],
+        "roles": [
+          "explorer"
+        ],
+        "model": "gpt-6-astra/high"
+      }
+    ],
+    "profiles": {
+      "low": {
+        "roles": [
+          "worker"
+        ],
+        "operational_stages": [
+          "verifier",
+          "delivery-manager"
+        ],
+        "gate_level": "relevant",
+        "max_cycles": 1
+      },
+      "medium": {
+        "roles": [
+          "worker",
+          "reviewer"
+        ],
+        "operational_stages": [
+          "verifier",
+          "delivery-manager"
+        ],
+        "gate_level": "relevant",
+        "max_cycles": 2
+      },
+      "high": {
+        "roles": [
+          "worker",
+          "reviewer",
+          "security-reviewer"
+        ],
+        "operational_stages": [
+          "verifier",
+          "delivery-manager"
+        ],
+        "conditional_roles": {
+          "explorer": [
+            "multi-root",
+            "infrastructure",
+            "trust-boundary",
+            "dependency",
+            "diagnosis-exhausted"
+          ],
+          "test-designer": [
+            "auth",
+            "pii",
+            "migration",
+            "persistence",
+            "concurrency",
+            "integration"
+          ]
+        },
+        "gate_level": "full",
+        "max_cycles": 2,
+        "model_overrides": {
+          "explorer": "gpt-5.6-sol/high",
+          "worker": "gpt-5.6-sol/high",
+          "test-designer": "gpt-5.6-sol/high",
+          "reviewer": "gpt-5.6-sol/high"
+        }
+      },
+      "critical": {
+        "roles": [
+          "security-reviewer"
+        ],
+        "gate_level": "none",
+        "max_cycles": 0,
+        "read_only": true
+      }
+    }
+  },
+  "gates": {
+    "evidence_gates": {
+      "governance_contract": {
+        "cwd": ".",
+        "argv": [
+          "python3",
+          "-I",
+          "-S",
+          "-B",
+          ".codex/policy_contract.py"
+        ],
+        "impact_patterns": [
+          ".codex/**"
+        ],
+        "cache": {
+          "kind": "isolated-python-v1",
+          "inputs": [
+            ".codex/policy_contract.py",
+            ".codex/execution-policy.json",
+            ".codex/config.toml"
+          ]
+        }
+      }
+    },
+    "stack": "Python (UV)",
+    "commands": {
+      "lint": "uv run ruff check .",
+      "typecheck": "uv run mypy .",
+      "test_fast": "uv run pytest",
+      "test_full": "uv run pytest",
+      "build": "uv build",
+      "e2e": "TODO"
+    },
+    "levels": {
+      "relevant": [
+        "test_fast",
+        "lint",
+        "typecheck"
+      ],
+      "full": [
+        "test_fast",
+        "lint",
+        "typecheck",
+        "test_full",
+        "build",
+        "e2e"
+      ]
+    },
+    "docs_only_extensions": [
+      ".md",
+      ".txt",
+      ".adoc",
+      ".rst"
+    ],
+    "failure_tail_lines": 40,
+    "timeout_seconds": 1200
+  },
+  "telemetry": {
+    "path": ".codex/metrics/executions.jsonl",
+    "retention_records": 500
+  }
+}

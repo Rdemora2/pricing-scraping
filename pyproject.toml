@@ -1,0 +1,35 @@
+[project]
+name = "pricing-intel"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.14"
+dependencies = [
+    "alembic>=1.20.0",
+    "fastapi>=0.141.1",
+    "procrastinate>=3.9.0",
+    "psycopg[binary,pool]>=3.3.6",
+    "pydantic-settings>=2.15.0",
+    "scrapy>=2.19.0",
+    "structlog>=26.1.0",
+    "uvicorn[standard]>=0.53.0",
+]
+
+[project.scripts]
+pricing-intel = "pricing_intel:main"
+
+[build-system]
+requires = ["uv_build>=0.12.11,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "hypothesis>=6.168.0",
+    "pre-commit>=4.6.2",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16.8",
+    "time-machine>=3.5.1",
+    "ty>=0.0.82",
+]

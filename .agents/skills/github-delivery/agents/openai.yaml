@@ -1,0 +1,13 @@
+interface:
+  display_name: "Entrega GitHub Autônoma"
+  short_description: "Entrega segura de branch, PR, CI e merge"
+  default_prompt: "Use $github-delivery para publicar uma mudança autorizada e concluir o PR com os gates de segurança."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "github"
+      description: "GitHub para branches, commits, pull requests, Actions e merge"
+
+policy:
+  allow_implicit_invocation: true

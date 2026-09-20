@@ -1,0 +1,234 @@
+# Configuração do Codex para Repositórios da Valiant Group (Cross-Platform: Windows & macOS)
+# Revise esta configuração com o responsável técnico antes de usar em produção.
+
+# Modelo corporativo padronizado pela Valiant Group.
+model = "gpt-5.6-sol"
+model_reasoning_effort = "high"
+service_tier = "default"
+
+# Fluxo local autônomo: comandos dentro do sandbox não pedem confirmação.
+# Ações sensíveis continuam bloqueadas pelas regras, sem abrir prompts.
+sandbox_mode = "workspace-write"
+approval_policy = "never"
+allow_login_shell = false
+
+# Rede desligada por padrão. Habilite apenas em um perfil separado e com allowlist.
+[sandbox_workspace_write]
+network_access = false
+
+# Resultados em cache reduzem exposição a páginas arbitrárias; trate toda saída web como não confiável.
+web_search = "cached"
+
+# Use poucos subagentes e prefira leitura paralela. Escrita concorrente deve ser explícita e isolada.
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 3
+default_subagent_model = "gpt-5.6-terra"
+default_subagent_reasoning_effort = "medium"
+# Encaminhe apenas variáveis necessárias aos comandos. Nunca encaminhe credenciais de produção.
+[shell_environment_policy]
+ignore_default_excludes = false
+
+[shell_environment_policy.filters]
+# Variáveis Universais / Unix (macOS & Linux)
+PATH = "include"
+HOME = "include"
+LANG = "include"
+LC_ALL = "include"
+NODE_ENV = "include"
+CI = "include"
+
+# Variáveis Essenciais para Execução no Windows
+SystemRoot = "include"
+COMSPEC = "include"
+APPDATA = "include"
+LOCALAPPDATA = "include"
+TEMP = "include"
+TMP = "include"
+USERPROFILE = "include"
+PATHEXT = "include"
+
+# Habilite somente o que for necessário; os defaults atuais já incluem o suporte a agentes.
+[features]
+multi_agent = true
+hooks = true
+fast_mode = false
+
+# Se o time precisar de logs, use um diretório fora do repositório e aplique retenção.
+# macOS: log_dir = "/Users/SEU_USUARIO/Library/Logs/valiant-codex"
+# Windows: log_dir = "C:/Users/SEU_USUARIO/AppData/Local/valiant-codex/logs"
+
+# Não configure MCP globalmente no primeiro dia. Adicione servidores por projeto confiável,
+# com enabled_tools e default_tools_approval_mode explícitos, após revisão de segurança.
+# Exemplo somente ilustrativo:
+# [mcp_servers.docs]
+# url = "https://SEU_SERVIDOR_DE_DOCUMENTACAO/mcp"
+# enabled_tools = ["search", "read"]
+# default_tools_approval_mode = "prompt"
+# startup_timeout_sec = 10
+# tool_timeout_sec = 60
+
+# valiant-github-policy:start:delivery-v1
+# GitHub: deny-by-default; leitura e entrega são liberadas somente por allowlist.
+[apps.github]
+default_tools_enabled = false
+default_tools_approval_mode = "writes"
+destructive_enabled = true
+open_world_enabled = true
+
+[apps.github.tools.get_repo]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.search]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.fetch_file]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.fetch_commit]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.compare_commits]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.get_pr_info]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.list_pr_changed_filenames]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.fetch_pr_file_patch]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.fetch_issue]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.search_issues]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.search_prs]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.list_pull_request_reviews]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.list_pull_request_review_threads]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.fetch_pr_comments]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.fetch_issue_comments]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.get_commit_combined_status]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.fetch_commit_workflow_runs]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.fetch_workflow_run_jobs]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.fetch_workflow_job_steps]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.get_user_login]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.get_repo_collaborator_permission]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.search_branches]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.fetch_blob]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.fetch_workflow_job_logs]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.fetch_workflow_run_artifacts]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.create_branch]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.create_blob]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.create_tree]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.create_commit]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.update_ref]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.create_pull_request]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.mark_pull_request_ready_for_review]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.request_pull_request_reviewers]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.add_comment_to_issue]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.reply_to_review_comment]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.rerun_failed_workflow_run_jobs]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.rerun_workflow_job]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.enable_auto_merge]
+enabled = true
+approval_mode = "approve"
+
+[apps.github.tools.merge_pull_request]
+enabled = true
+approval_mode = "approve"
+# valiant-github-policy:end

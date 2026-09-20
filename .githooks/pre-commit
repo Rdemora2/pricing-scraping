@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+
+repo_root=$(git rev-parse --show-toplevel)
+policy="$repo_root/scripts/check_commit_policy.py"
+
+if [ ! -f "$policy" ]; then
+  printf '%s\n' '[VALIANT COMMIT POLICY] Validador autocontido não encontrado no repositório.' >&2
+  exit 1
+fi
+
+if command -v python3 >/dev/null 2>&1; then
+  exec python3 "$policy" --staged
+fi
+if command -v python >/dev/null 2>&1; then
+  exec python "$policy" --staged
+fi
+if command -v py >/dev/null 2>&1; then
+  exec py -3 "$policy" --staged
+fi
+
+printf '%s\n' '[VALIANT COMMIT POLICY] Python 3 é obrigatório para validar o commit.' >&2
+exit 1

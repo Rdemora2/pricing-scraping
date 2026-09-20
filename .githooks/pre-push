@@ -1,0 +1,36 @@
+#!/bin/sh
+set -eu
+
+remote_name=${1:-}
+remote_url=${2:-}
+
+if [ "$remote_name" != "origin" ]; then
+  printf '%s\n' "[VALIANT DELIVERY] Push permitido somente para origin; recebido: $remote_name" >&2
+  exit 1
+fi
+
+configured_urls=$(git config --local --get-all remote.origin.url || true)
+if [ -z "$configured_urls" ] || [ "$configured_urls" != "$remote_url" ]; then
+  printf '%s\n' '[VALIANT DELIVERY] URL efetiva não coincide com o único origin local.' >&2
+  exit 1
+fi
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main|refs/heads/master)
+      printf '%s\n' '[VALIANT DELIVERY] Push direto na default branch é proibido; use PR.' >&2
+      exit 1
+      ;;
+  esac
+
+  if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+    printf '%s\n' '[VALIANT DELIVERY] Exclusão remota por push é proibida; use o fluxo do PR.' >&2
+    exit 1
+  fi
+
+  if [ "$remote_sha" != "0000000000000000000000000000000000000000" ] &&
+     ! git merge-base --is-ancestor "$remote_sha" "$local_sha"; then
+    printf '%s\n' '[VALIANT DELIVERY] Push non-fast-forward é proibido.' >&2
+    exit 1
+  fi
+done

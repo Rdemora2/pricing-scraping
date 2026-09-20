@@ -1,0 +1,4 @@
+interface:
+  display_name: "Valiant Engineering Standards"
+  short_description: "Padrões técnicos por stack sob demanda"
+  default_prompt: "Use $valiant-engineering-standards e aplique somente os padrões relevantes ao stack e ao escopo."

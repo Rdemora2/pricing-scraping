@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitHub Read-only Context"
+  short_description: "Contexto GitHub mínimo e somente leitura"
+  default_prompt: "Use $github-context-readonly para coletar somente o contexto GitHub necessário, sem mutações."

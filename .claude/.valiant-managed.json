@@ -1,0 +1,31 @@
+{
+  "files": {
+    ".claude/agents/delivery-manager.md": "3805e2fc82458ba55929cba03cf5d54dce9a7ed06b7b1d4c069b38b0dae1da11",
+    ".claude/agents/explorer.md": "0d7782926a8cad550bf0fc25eee870a786033d372eac06804b1f9e89ffbcc78a",
+    ".claude/agents/reviewer.md": "3470326183c85ab3c594e3458c960ad2ea1e0df12700af061977067bbd3dbf9e",
+    ".claude/agents/security-reviewer.md": "ac76fa13f10eed3099c74aab64ce35a082c613ee209db0d49f4a40138ab309af",
+    ".claude/agents/test-designer.md": "ef922c70f83602c0e97d8e89c095af34cad090893d50003ddfafacb25e1d3ce2",
+    ".claude/agents/verifier.md": "49c4b4798eed6ad0bd0abf8cfcb2573382948048aa1e5575f5cbaf47e25d90df",
+    ".claude/agents/worker.md": "14a457438ac5f6483e28c187065f8c15c2c4dcd6fbae0074f27b528f9125e61b",
+    ".claude/hooks/policy.py": "53d2827471813f3b3b5b740a2300675546f28c57c248bc41b2f574aa841c22c2",
+    ".claude/hooks/policy.sh": "a0ab6523deb16abc68328ffca6d4ba2427706508244754f3dbb9cdc9ab5236dc",
+    ".claude/skills/execute-delivery-roadmap/SKILL.md": "96fbc41d64d6fab654dd872fc958dc555ead201c7dc9bdbaf662c8dabfda6e37",
+    ".claude/skills/github-context-readonly/SKILL.md": "e18f74ed1dc8dc4a6d1877167621d2ba298185635f6cb119ef197589dfd51c12",
+    ".claude/skills/github-context-readonly/agents/openai.yaml": "7a2857c310fe3ccf1a5a9013f008db178a63e6481fc19077cdb924ff4daf66f5",
+    ".claude/skills/github-delivery/SKILL.md": "1d560707eef496441bda5b1aeef9279b78a30f571da18210dada0560d487ccd9",
+    ".claude/skills/github-delivery/agents/openai.yaml": "4032a2bd905ce0e6993cdec13c73b0dd1ad806bfd6adb526ccc2a185692f07ed",
+    ".claude/skills/github-delivery/references/delivery-gates.md": "cfa0f14ea6cc6fa2cab8214b810ec8a163dcfbfecc5cc4e9ed6c64c72cf11395",
+    ".claude/skills/implement-small-change/SKILL.md": "9e1037531832985cd3717832d7b24d7aa6f332009d3cbdcf28c564e190124526",
+    ".claude/skills/plan-change/SKILL.md": "90b282d470cd54b163c5fcbc1d17d905e30f781f3ef972e6110016f616079d80",
+    ".claude/skills/repo-onboarding/SKILL.md": "d5222287dcadbf5f2ee7203de93c9270751cf29a32f01a4dc0e71122ff8b409c",
+    ".claude/skills/review-change/SKILL.md": "150d1d80c4a6907f8a7158a8f7869cf1467f9dcecef28574944fa21ed221cd52",
+    ".claude/skills/security-review/SKILL.md": "8304417ff09b9558554fc59966f81c6122cf68e0855a0463cc13f9b254bcf901",
+    ".claude/skills/valiant-engineering-standards/SKILL.md": "ebc0a0ed1af29b7f6685b374dadb6a3ca34d7e1ab0dd1c7ffc8d701d5b98bd75",
+    ".claude/skills/valiant-engineering-standards/agents/openai.yaml": "1eceb2c8ba91d5cbf6bd3fe78c32e0e77917c6294d2e53879331f9fcb1bcfdf0",
+    ".claude/skills/valiant-engineering-standards/references/go.md": "b7700e6bcda85f01505df3be6067e2f4f6ce869cbc153428b5a289687706a2d9",
+    ".claude/skills/valiant-engineering-standards/references/platform.md": "c64a67566edd486d74c3a4f800e85fd17e0ea4db33baad3b79f739a8de27ae9b",
+    ".claude/skills/valiant-engineering-standards/references/web-node.md": "ac0c8fd5f6f2343ea107a51ae5a6271847fc3d112ce1b9f64d6ce8dc1a00f9ae",
+    "docs/ai/claude-code.md": "465663cb01b03b7a7e8cd983c62582c6ed21b7e2ff88f9abb90871b613d31fc4"
+  },
+  "schema_version": 1
+}
