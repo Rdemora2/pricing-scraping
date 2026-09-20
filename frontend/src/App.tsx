@@ -1,4 +1,4 @@
-import { type CSSProperties, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { api } from "./api";
 import type { CollectionRun, Comparison, Product, Source, Variant } from "./types";
@@ -70,7 +70,6 @@ function PriceRange({ comparison }: { comparison: Comparison }) {
   const median = Number(comparison.median_price ?? 0);
   const max = Number(comparison.max_price ?? 0);
   const position = max === min ? 50 : ((median - min) / (max - min)) * 100;
-  const style = { "--median-position": `${position}%` } as CSSProperties;
 
   return (
     <section className="price-range" aria-label="Faixa de preços comparáveis">
@@ -81,12 +80,30 @@ function PriceRange({ comparison }: { comparison: Comparison }) {
         </div>
         <span className="sample-badge">{comparison.included_offer_count} ofertas válidas</span>
       </div>
-      <div className="range-visual" style={style}>
-        <div className="range-track" />
-        <div className="range-median">
+      <div className="range-visual">
+        <div className="range-median-label">
           <span>Mediana</span>
           <strong>{formatMoney(comparison.median_price)}</strong>
         </div>
+        <svg
+          aria-hidden="true"
+          className="range-graph"
+          preserveAspectRatio="none"
+          viewBox="0 0 100 64"
+        >
+          <defs>
+            <linearGradient id="range-gradient" x1="0" x2="1">
+              <stop offset="0" stopColor="#718d1f" />
+              <stop offset="0.55" stopColor="#b6dc3b" />
+              <stop offset="1" stopColor="#ff745c" />
+            </linearGradient>
+          </defs>
+          <line className="range-track" x1="0" x2="100" y1="42" y2="42" />
+          <line className="range-boundary" x1="0.5" x2="0.5" y1="34" y2="50" />
+          <line className="range-boundary" x1="99.5" x2="99.5" y1="34" y2="50" />
+          <line className="range-marker" x1={position} x2={position} y1="24" y2="54" />
+          <circle className="range-marker-dot" cx={position} cy="42" r="2.2" />
+        </svg>
       </div>
       <div className="range-limits">
         <div>

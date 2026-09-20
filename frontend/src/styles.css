@@ -456,35 +456,40 @@ summary:focus-visible {
   margin-top: 48px;
 }
 
+.range-graph {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
 .range-track {
-  position: absolute;
-  top: 58px;
-  left: 0;
-  right: 0;
-  height: 8px;
-  background: linear-gradient(90deg, var(--signal-dark), var(--signal), var(--coral));
+  stroke: url("#range-gradient");
+  stroke-width: 5;
+  vector-effect: non-scaling-stroke;
 }
 
-.range-track::before,
-.range-track::after {
-  content: "";
-  position: absolute;
-  top: -5px;
-  width: 3px;
-  height: 18px;
-  background: var(--ink);
+.range-boundary,
+.range-marker {
+  stroke: var(--ink);
+  vector-effect: non-scaling-stroke;
 }
 
-.range-track::before {
-  left: 0;
-}
-.range-track::after {
-  right: 0;
+.range-boundary {
+  stroke-width: 3;
 }
 
-.range-median {
+.range-marker {
+  stroke-width: 2;
+}
+
+.range-marker-dot {
+  fill: var(--ink);
+  vector-effect: non-scaling-stroke;
+}
+
+.range-median-label {
   position: absolute;
-  left: var(--median-position);
+  left: 50%;
   transform: translateX(-50%);
   display: grid;
   justify-items: center;
@@ -492,14 +497,7 @@ summary:focus-visible {
   white-space: nowrap;
 }
 
-.range-median::after {
-  content: "";
-  width: 2px;
-  height: 34px;
-  background: var(--ink);
-}
-
-.range-median span,
+.range-median-label span,
 .range-limits span {
   color: #64696b;
   font-size: 0.7rem;
@@ -507,7 +505,7 @@ summary:focus-visible {
   letter-spacing: 0.1em;
 }
 
-.range-median strong {
+.range-median-label strong {
   font-size: 1.5rem;
   letter-spacing: -0.05em;
 }

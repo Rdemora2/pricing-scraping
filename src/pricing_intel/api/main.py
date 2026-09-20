@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from pricing_intel.api.routers import catalog, collection
 from pricing_intel.db.pool import close_pool, get_pool
@@ -40,6 +41,10 @@ def create_app() -> FastAPI:
         allow_origins=["http://localhost:5173", "http://localhost:4173"],
         allow_methods=["GET", "POST"],
         allow_headers=["*"],
+    )
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=["localhost", "127.0.0.1", "api", "testserver"],
     )
 
     app.include_router(collection.router)
