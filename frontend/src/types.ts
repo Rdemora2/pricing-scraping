@@ -107,6 +107,7 @@ export type Comparison = {
   excluded: ExcludedOffer[];
   oldest_observation_at: string | null;
   newest_observation_at: string | null;
+  freshness_window_hours: number;
   generated_at: string;
 };
 
@@ -165,5 +166,6 @@ export type ProductIntelligence = {
   storage_analysis: StorageIntelligence[];
   color_analysis: ColorIntelligence[];
   methodology: string[];
+  freshness_window_hours: number;
   generated_at: string;
 };

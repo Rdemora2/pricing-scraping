@@ -81,6 +81,22 @@ def test_empty_comparison_is_explicitly_insufficient() -> None:
     assert result.oldest_observation_at is None
 
 
+def test_comparison_excludes_observations_older_than_the_freshness_cutoff() -> None:
+    now = datetime(2026, 9, 20, 12, tzinfo=UTC)
+    result = compare_variant(
+        uuid4(),
+        [
+            snapshot(499_900, source="Antiga", observed_at=now - timedelta(hours=73)),
+            snapshot(509_900, source="Atual", observed_at=now - timedelta(hours=2)),
+        ],
+        observed_after=now - timedelta(hours=72),
+    )
+
+    assert result.included_offer_count == 1
+    assert result.included[0].source_name == "Atual"
+    assert result.excluded[0].reason.startswith("observation is older than the freshness cutoff")
+
+
 def test_conditional_price_is_not_mixed_into_market_baseline() -> None:
     result = compare_variant(
         uuid4(),

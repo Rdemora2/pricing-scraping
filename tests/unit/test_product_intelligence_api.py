@@ -44,7 +44,7 @@ async def test_product_intelligence_endpoint_returns_explainable_contract(monkey
             availability=Availability.IN_STOCK,
             price_minor_units=price,
             currency="BRL",
-            observed_at=datetime(2026, 9, 20, tzinfo=UTC),
+            observed_at=datetime.now(UTC),
             payment_terms=PaymentTerms(),
             shipping=ShippingTerms(known=False),
         )
@@ -72,6 +72,7 @@ async def test_product_intelligence_endpoint_returns_explainable_contract(monkey
     assert response.storages_gb == [256, 512]
     assert response.colors == ["Prateado"]
     assert response.min_price == "7000.00"
+    assert response.freshness_window_hours == 72
     assert response.best_value_storage is None
     assert response.methodology[-1] == (
         "Melhor custo-benefício exige duas cores por capacidade, duas capacidades e três varejistas."

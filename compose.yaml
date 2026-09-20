@@ -4,6 +4,7 @@ x-app-environment: &app-environment
   DATABASE_URL: postgresql://${POSTGRES_USER:-pricing_intel}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD_required}@postgres:5432/${POSTGRES_DB:-pricing_intel}
   ENVIRONMENT: local
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  COMPARISON_MAX_AGE_HOURS: ${COMPARISON_MAX_AGE_HOURS:-72}
   LAB_STORE_A_BASE_URL: http://lab-store-a:8000
   LAB_STORE_B_BASE_URL: http://lab-store-b:8000
 

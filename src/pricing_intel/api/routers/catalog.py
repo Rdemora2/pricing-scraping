@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request
@@ -15,6 +15,7 @@ from pricing_intel.api.schemas import (
     ProductResponse,
     VariantResponse,
 )
+from pricing_intel.config import get_settings
 from pricing_intel.db.queries import catalog as catalog_q
 from pricing_intel.db.queries import offers as offers_q
 from pricing_intel.pricing.analysis import compare_variant
@@ -86,8 +87,19 @@ async def get_product_intelligence(product_id: UUID) -> ProductIntelligenceRespo
         raise HTTPException(status_code=404, detail="product not found")
     variants = await catalog_q.list_variants_for_product(product_id)
     snapshots = await offers_q.list_latest_snapshots_for_product(product_id)
-    result = analyze_product(product_id, variants, snapshots)
-    return ProductIntelligenceResponse.from_result(result, generated_at=datetime.now(UTC))
+    generated_at = datetime.now(UTC)
+    freshness_hours = get_settings().comparison_max_age_hours
+    result = analyze_product(
+        product_id,
+        variants,
+        snapshots,
+        observed_after=generated_at - timedelta(hours=freshness_hours),
+    )
+    return ProductIntelligenceResponse.from_result(
+        result,
+        generated_at=generated_at,
+        freshness_window_hours=freshness_hours,
+    )
 
 
 @router.get("/variants/{variant_id}/comparison", response_model=ComparisonResponse)
@@ -96,5 +108,15 @@ async def get_comparison(variant_id: UUID) -> ComparisonResponse:
     if variant is None:
         raise HTTPException(status_code=404, detail="variant not found")
     snapshots = await offers_q.list_latest_snapshots_for_variant(variant_id)
-    result = compare_variant(variant_id, snapshots)
-    return ComparisonResponse.from_result(result, generated_at=datetime.now(UTC))
+    generated_at = datetime.now(UTC)
+    freshness_hours = get_settings().comparison_max_age_hours
+    result = compare_variant(
+        variant_id,
+        snapshots,
+        observed_after=generated_at - timedelta(hours=freshness_hours),
+    )
+    return ComparisonResponse.from_result(
+        result,
+        generated_at=generated_at,
+        freshness_window_hours=freshness_hours,
+    )

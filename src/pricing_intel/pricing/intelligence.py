@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
@@ -123,6 +124,7 @@ def analyze_product(
     snapshots: list[ProductVariantOfferSnapshot],
     *,
     reference_currency: str = "BRL",
+    observed_after: datetime | None = None,
 ) -> ProductIntelligence:
     """Build model-level insights from exact, comparable variant populations."""
 
@@ -144,6 +146,7 @@ def analyze_product(
             variant.id,
             list(snapshots_by_variant.get(variant.id, [])),
             reference_currency=reference_currency,
+            observed_after=observed_after,
         )
         if result.median_price_minor_units is None:
             continue

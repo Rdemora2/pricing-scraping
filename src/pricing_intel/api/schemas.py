@@ -160,10 +160,17 @@ class ComparisonResponse(BaseModel):
     excluded: list[ExcludedOfferResponse]
     oldest_observation_at: datetime | None
     newest_observation_at: datetime | None
+    freshness_window_hours: int
     generated_at: datetime
 
     @classmethod
-    def from_result(cls, result: ComparisonResult, *, generated_at: datetime) -> ComparisonResponse:
+    def from_result(
+        cls,
+        result: ComparisonResult,
+        *,
+        generated_at: datetime,
+        freshness_window_hours: int,
+    ) -> ComparisonResponse:
         return cls(
             variant_id=result.variant_id,
             currency=result.currency,
@@ -201,6 +208,7 @@ class ComparisonResponse(BaseModel):
             ],
             oldest_observation_at=result.oldest_observation_at,
             newest_observation_at=result.newest_observation_at,
+            freshness_window_hours=freshness_window_hours,
             generated_at=generated_at,
         )
 
@@ -307,11 +315,16 @@ class ProductIntelligenceResponse(BaseModel):
     storage_analysis: list[StorageIntelligenceResponse]
     color_analysis: list[ColorIntelligenceResponse]
     methodology: list[str]
+    freshness_window_hours: int
     generated_at: datetime
 
     @classmethod
     def from_result(
-        cls, result: ProductIntelligence, *, generated_at: datetime
+        cls,
+        result: ProductIntelligence,
+        *,
+        generated_at: datetime,
+        freshness_window_hours: int,
     ) -> ProductIntelligenceResponse:
         currency = result.currency
 
@@ -358,9 +371,11 @@ class ProductIntelligenceResponse(BaseModel):
             ],
             methodology=[
                 "Cada variante compara somente ofertas novas, disponíveis e na mesma moeda.",
+                f"Amostra atual considera observações das últimas {freshness_window_hours} horas.",
                 "O preço representativo é a mediana das variantes observadas em cada grupo.",
                 "O índice de cor mede o desvio contra a mediana das cores da mesma capacidade.",
                 "Melhor custo-benefício exige duas cores por capacidade, duas capacidades e três varejistas.",
             ],
+            freshness_window_hours=freshness_window_hours,
             generated_at=generated_at,
         )

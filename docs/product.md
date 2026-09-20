@@ -58,6 +58,8 @@ Uma observação entra na comparação somente quando:
 5. é a observação mais recente daquele anúncio.
 6. o preço não depende de cartão, clube, troca ou outra condição comercial.
 7. existe no máximo uma observação por varejista, preferindo a fonte direta.
+8. a observação está dentro da janela configurável de frescor, 72 horas por
+   padrão.
 
 Frete desconhecido permanece desconhecido. Cupom, parcelamento e desconto à vista
 são exibidos como condições, não aplicados silenciosamente ao preço-base. Preço

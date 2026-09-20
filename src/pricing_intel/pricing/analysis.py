@@ -102,12 +102,15 @@ def compare_variant(
     snapshots: list[VariantOfferSnapshot],
     *,
     reference_currency: str = "BRL",
+    observed_after: datetime | None = None,
 ) -> ComparisonResult:
     included: list[VariantOfferSnapshot] = []
     excluded: list[ExcludedOffer] = []
 
     for snapshot in snapshots:
-        if snapshot.currency != reference_currency:
+        if observed_after is not None and snapshot.observed_at < observed_after:
+            reason = f"observation is older than the freshness cutoff {observed_after.isoformat()}"
+        elif snapshot.currency != reference_currency:
             reason = f"currency {snapshot.currency} is not comparable to {reference_currency}"
         elif snapshot.condition != Condition.NEW:
             reason = f"condition is '{snapshot.condition.value}', comparison baseline is 'new'"

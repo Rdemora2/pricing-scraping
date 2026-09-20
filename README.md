@@ -123,6 +123,7 @@ Variáveis principais:
 - `API_PORT` e `FRONTEND_PORT`: portas no loopback do host;
 - `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`: banco local;
 - `LOG_LEVEL`: nível de log dos processos Python.
+- `COMPARISON_MAX_AGE_HOURS`: janela da visão atual; padrão de 72 horas.
 - `BRAVE_SEARCH_API_KEY`: opcional; habilita o radar de candidatos na internet.
 
 ## API
@@ -187,7 +188,8 @@ varejistas. O índice de cor compara cada cor com a mediana das cores do mesmo
 armazenamento e consolida os desvios percentuais. A resposta informa cobertura do catálogo,
 tamanho da amostra e metodologia. Quando faltam duas capacidades ou combinações
 equivalentes de cor, a recomendação correspondente permanece explicitamente em
-formação.
+formação. Por padrão, somente observações das últimas 72 horas influenciam a visão
+atual; registros mais antigos continuam no histórico e aparecem como exclusões.
 
 ## Parada, rollback e dados locais
 
