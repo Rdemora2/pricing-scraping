@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from pricing_intel.api.routers import catalog, collection
 from pricing_intel.db.pool import close_pool, get_pool
+from pricing_intel.jobs.app import app as procrastinate_app
 from pricing_intel.logging import configure_logging
 
 
@@ -15,9 +16,11 @@ from pricing_intel.logging import configure_logging
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging()
     await get_pool().open()
+    await procrastinate_app.open_async()
     try:
         yield
     finally:
+        await procrastinate_app.close_async()
         await close_pool()
 
 
