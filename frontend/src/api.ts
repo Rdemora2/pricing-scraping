@@ -1,4 +1,13 @@
-import type { CollectionRun, Comparison, Product, Source, Variant } from "./types";
+import type {
+  CollectionRun,
+  Comparison,
+  Product,
+  ProductCreatePayload,
+  ProductDetail,
+  Source,
+  SourceCandidate,
+  Variant,
+} from "./types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -20,11 +29,31 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  listSources: () => request<Source[]>("/sources"),
+  listSources: (enabledOnly = true) =>
+    request<Source[]>(`/sources?enabled_only=${enabledOnly ? "true" : "false"}`),
   listProducts: () => request<Product[]>("/products"),
   listVariants: (productId: string) => request<Variant[]>(`/products/${productId}/variants`),
   getComparison: (variantId: string) => request<Comparison>(`/variants/${variantId}/comparison`),
   collectSource: (sourceId: string) =>
     request<CollectionRun>(`/sources/${sourceId}/collect`, { method: "POST" }),
   getRun: (runId: string) => request<CollectionRun>(`/runs/${runId}`),
+  createProduct: (payload: ProductCreatePayload) =>
+    request<ProductDetail>("/products", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  listCandidates: () => request<SourceCandidate[]>("/discovery/candidates"),
+  discover: (query: string) =>
+    request<SourceCandidate[]>("/discovery/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    }),
+  createCandidate: (payload: { url: string; title: string; snippet?: string }) =>
+    request<SourceCandidate>("/discovery/candidates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
 };

@@ -4,6 +4,20 @@ export type Source = {
   base_url: string;
   kind: string;
   status: string;
+  adapter_name: string;
+};
+
+export type SourceCandidate = {
+  id: string;
+  url: string;
+  domain: string;
+  title: string;
+  snippet: string;
+  provider: string;
+  query: string;
+  trust_tier: "trusted" | "known" | "unknown";
+  status: "candidate" | "reviewed" | "rejected";
+  discovered_at: string;
 };
 
 export type CollectionRun = {
@@ -22,6 +36,21 @@ export type Product = {
   name: string;
   brand: string;
   category: string;
+};
+
+export type ProductCreatePayload = {
+  name: string;
+  brand: string;
+  category: string;
+  variants: Array<{
+    attributes: Record<string, string>;
+    gtin: string | null;
+  }>;
+};
+
+export type ProductDetail = {
+  product: Product;
+  variants: Variant[];
 };
 
 export type Variant = {
@@ -45,6 +74,9 @@ export type Offer = {
     installment_count: number | null;
     cash_discount_pct: string | null;
     coupon_code: string | null;
+    price_basis: "advertised" | "cash" | "installment" | "conditional";
+    is_conditional: boolean;
+    condition_summary: string | null;
   };
   shipping: {
     known: boolean;
@@ -67,6 +99,7 @@ export type Comparison = {
   has_comparable_data: boolean;
   included_offer_count: number;
   source_count: number;
+  retailer_count: number;
   min_price: string | null;
   median_price: string | null;
   max_price: string | null;
