@@ -28,7 +28,9 @@ class Money(NamedTuple):
         return cls(minor_units=int(quantized * 100), currency=currency.upper())
 
     def to_decimal(self) -> Decimal:
-        return Decimal(self.minor_units) / 100
+        # Plain division can normalize away trailing zeros (3499.00 -> 3499);
+        # quantize back to 2 places so the wire format is always stable.
+        return (Decimal(self.minor_units) / 100).quantize(_CENTS)
 
     def __str__(self) -> str:  # pragma: no cover - trivial formatting
         return f"{self.to_decimal():.2f} {self.currency}"
