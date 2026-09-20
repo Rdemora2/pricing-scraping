@@ -10,6 +10,6 @@ class LabStoreBSpider(LabStoreSpider):
     product_link_css = "a.offer-tile::attr(href)"
     next_page_css = 'a[rel="next"]::attr(href)'
 
-    def start_requests(self):
+    async def start(self):
         base_url = os.environ.get("LAB_STORE_B_BASE_URL", "http://lab-store-b:8000")
         yield scrapy.Request(f"{base_url}/c/celulares", callback=self.parse_category)
