@@ -1,8 +1,8 @@
 # Estado de execução
 
 **Atualizado em:** `2026-09-21`
-**Estado global:** `VERIFIED`
-**Unidade ativa:** `INC-11` — perfil HTTP realista de navegador; revisão funcional/segurança independentes concluídas, PR #10 mesclado (squash, `f094500`), checks remotos verdes
+**Estado global:** `IN_REVIEW`
+**Unidade ativa:** `INC-12` — iPlace passa a usar fallback de navegador como caminho normal (não mais raro); Casas Bahia/Ponto/Extra/Magalu avaliados e descartados com evidência concreta (ver STATUS abaixo)
 
 O roadmap conclui o laboratório e avança o portal local de inteligência de
 preços com fontes reais. A entrega permanece limitada ao ambiente local; não
@@ -111,6 +111,37 @@ checks remotos (`governance`, GitGuardian) verdes, sem review obrigatória
 pendente, `mergeStateStatus=CLEAN`; squash-merge no SHA `f094500` com o head
 relido imediatamente antes da decisão. `main` local sincronizada via
 `.codex/safe_git_sync.py sync-main`.
+
+O `INC-12` investigou ampliação de cobertura usando o perfil do `INC-11`.
+Casas Bahia, Ponto e Extra (mesma plataforma Next.js) têm página de categoria
+acessível, mas `initialState.price` chega `{"loading": true, "prices": []}`
+no próprio HTML — preço é deliberadamente carregado por cliente atrás de
+telemetria comportamental Akamai ativa (capturada em tráfego de rede real).
+Um teste controlado confirmou: o Playwright já existente, sem nenhuma
+modificação, recebe HTTP 403 imediato nesses hosts, com `navigator.webdriver`
+como o sinal — contornar isso exigiria mascarar essa flag, evasão de WAF
+nomeada, fora de escopo. Magalu tem o mesmo padrão confirmado com URL real de
+produto. TerabyteShop e Pichau são tecnicamente acessíveis mas não vendem os
+aparelhos do catálogo (varejistas de hardware/PC). Essas cinco fontes
+permanecem `candidate` sem novo trabalho de adapter — evidência em
+`docs/source-qualification.md` e na investigação desta sessão.
+
+iPlace, em contraste, não bloqueia automação: o mesmo Playwright sem
+modificação carrega a página de produto normalmente e expõe `Product`
+JSON-LD idêntico ao que `extract_iplace_listings` (inalterado) já espera — a
+plataforma migrou para Oracle Commerce Cloud e passou a renderizar no
+cliente, então HTTP puro nunca mais será suficiente. `IPlaceSpider` passa a
+usar o fallback de navegador já existente como caminho normal (mesmo
+invariante de Amazon/Carrefour: só escala após HTTP permitido e insuficiente,
+nunca em bloqueio), com allowlist restrita a `www.iplace.com.br` (testada sem
+nenhum host de terceiros liberado). A resolução de URL usa um mapa
+model→slug verificado contra `productSitemap.xml`, não busca — `/searchresults/`
+é proibido no `robots.txt` do iPlace. Seis modelos verificados (iPhone 16
+Plus/Pro/Pro Max, 17 Pro/Pro Max, Air); iPhone 16/17 base e 18 Pro/Pro Max
+ainda sem página confirmada nesse sitemap. Runtime local: `uv run pytest`
+179 passados (8 novos), `ruff check`, `ruff format --check` e `ty check`
+verdes. Aguarda execução real pelo pipeline completo para promoção a
+`enabled`.
 
 O reviewer independente aprovou localmente o ciclo 2 do INC-05 no fingerprint
 `fadb3ec6d99b17b80386d1296655a3ef65be8f3523e59bd2760133dcb64d0b75`, sem

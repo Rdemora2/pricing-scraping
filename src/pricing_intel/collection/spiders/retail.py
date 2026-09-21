@@ -200,18 +200,72 @@ class _RetailSpider(scrapy.Spider):
 
 
 class IPlaceSpider(_RetailSpider):
+    """Apple-only reseller. iPlace does not carry Android devices.
+
+    ``/searchresults/`` is disallowed by iPlace's robots.txt, so product
+    pages are resolved from a slug verified against the site's own
+    ``productSitemap.xml`` rather than searched. Only canonical models
+    confirmed present in that sitemap are listed; an unlisted model raises
+    instead of guessing a slug, mirroring ``SamsungShopSpider``.
+    """
+
     name = "iplace"
     allowed_domains = ("www.iplace.com.br",)
     extractor_name = "iplace_product_jsonld"
+    browser_fallback_enabled = True
+    browser_allowed_domains = ("www.iplace.com.br",)
+    # Every product page needs client-side rendering for both the visible
+    # buy box and its Product JSON-LD, so this is the everyday path here,
+    # not a rare fallback. It is still gated the same way as elsewhere: the
+    # HTTP request must already have been allowed (2xx) with evidence found
+    # insufficient before a browser request is issued.
+    custom_settings = {"CLOSESPIDER_PAGECOUNT": 4}  # noqa: RUF012 - Scrapy class contract
+
+    _PRODUCT_SLUGS = {  # noqa: RUF012 - Scrapy class contract
+        "iphone_16_plus": "apple-iphone-16-plus/100028PR",
+        "iphone_16_pro": "apple-iphone-16-pro/100029PR",
+        "iphone_16_pro_max": "apple-iphone-16-pro-max/100030PR",
+        "iphone_17_pro": "apple-iphone-17-pro/100411PR",
+        "iphone_17_pro_max": "apple-iphone-17-pro-max/100544PR",
+        "iphone_air": "apple-iphone-air/100408PR",
+    }
+
+    async def start(self):
+        if not self.product_model:
+            raise ValueError(f"{self.name} requires a canonical product model")
+        slug = self._PRODUCT_SLUGS.get(self.product_model)
+        if slug is None:
+            raise ValueError(
+                f"{self.name} has no verified product page for model "
+                f"{self.product_model!r}; add it to _PRODUCT_SLUGS only after "
+                "confirming the slug in productSitemap.xml"
+            )
+        yield scrapy.Request(urljoin(self.base_url, slug), callback=self.parse_product)
 
     def parse_product(self, response: scrapy.http.Response):
+        if response.status != 200:
+            self.logger.error("iPlace product page refused with HTTP %s", response.status)
+            return
         try:
-            listings = extract_iplace_listings(response.text, response.url)
+            listings = extract_iplace_listings(self.response_text(response), response.url)
         except ExtractionError as exc:
-            self.logger.error("iPlace extraction failed: %s", exc)
+            self.logger.warning("iPlace HTTP extraction failed; trying browser: %s", exc)
+            yield self.browser_fallback_request(response.url)
             return
         for listing in listings:
             yield self.listing_item(response, listing)
+
+    def parse_browser_product(self, response: scrapy.http.Response):
+        if response.status != 200:
+            self.logger.error("iPlace browser fallback refused with HTTP %s", response.status)
+            return
+        try:
+            listings = extract_iplace_listings(self.response_text(response), response.url)
+        except ExtractionError as exc:
+            self.logger.error("iPlace browser fallback failed: %s", exc)
+            return
+        for listing in listings:
+            yield self.listing_item(response, listing, browser_fallback=True)
 
 
 class AmazonSpider(_RetailSpider):
