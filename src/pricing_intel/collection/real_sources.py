@@ -16,6 +16,7 @@ from decimal import Decimal, InvalidOperation
 
 from parsel import Selector
 
+from pricing_intel.catalog import CATALOG_PRODUCTS, CatalogProduct
 from pricing_intel.collection.extraction import (
     ExtractionError,
     iter_product_json_ld,
@@ -46,15 +47,10 @@ class RetailListing:
     shipping: ShippingTerms
 
 
-_IPHONE_17_NAME = re.compile(
-    r"iphone\s+17(?:\s+apple)?[^0-9]*(?P<storage>256|512)\s*gb(?:\s+|.*?cor\s+)(?P<color>[^,|]+)",
-    re.IGNORECASE,
+_STORAGE = re.compile(
+    r"(?:capacidade|armazenamento|mem[oó]ria)?\s*:?[ ]*(128|256|512|1024|2048)\s*gb",
+    re.I,
 )
-_GALAXY_S26_NAME = re.compile(
-    r"galaxy\s+s26(?P<suffix>\+|\s*plus|\s*ultra)?.*?(?P<storage>256|512|1\s*tb|1024)\s*(?:gb)?",
-    re.IGNORECASE,
-)
-_STORAGE = re.compile(r"(?:capacidade|armazenamento|mem[oó]ria)?\s*:?[ ]*(256|512)\s*gb", re.I)
 _MODEL = re.compile(r"modelo\s*:?[ ]*([A-Z0-9/\-]+)", re.I)
 _COLOR = re.compile(r"cor\s*:?[ ]*([\wÀ-ÿ\- ]+?)(?:<|\||,|$)", re.I)
 _INSTALLMENTS = re.compile(r"\b(\d{1,2})\s*x\b", re.I)
@@ -91,58 +87,49 @@ def _price(offer: dict) -> Decimal:
     return price
 
 
-def _iphone_attributes(storage: str, color: str) -> dict[str, str]:
-    return {
-        "brand": "apple",
-        "model": "iphone_17",
-        "region": "br",
-        "storage_gb": storage,
-        "color": color.strip(),
-    }
-
-
-def _galaxy_attributes(*, model_suffix: str, storage: str, color: str) -> dict[str, str]:
-    suffix = model_suffix.casefold().strip()
-    model = (
-        "galaxy_s26_ultra"
-        if "ultra" in suffix
-        else "galaxy_s26_plus"
-        if suffix in {"+", "plus"}
-        else "galaxy_s26"
+def _fold_text(value: str) -> str:
+    value = value.replace("+", " plus ")
+    without_marks = "".join(
+        character
+        for character in unicodedata.normalize("NFKD", value.casefold())
+        if not unicodedata.combining(character)
     )
-    normalized_storage = "1024" if "tb" in storage.casefold() else storage.strip()
-    return {
-        "brand": "samsung",
-        "model": model,
-        "region": "br",
-        "storage_gb": normalized_storage,
-        "color": color.strip(),
+    return re.sub(r"[^a-z0-9]+", " ", without_marks).strip()
+
+
+def _identity_aliases(product: CatalogProduct) -> tuple[str, ...]:
+    aliases = {
+        product.name,
+        re.sub(rf"^{re.escape(product.brand)}\s+", "", product.name, flags=re.I),
     }
+    if "+" in product.name:
+        aliases.update(alias.replace("+", " Plus") for alias in tuple(aliases))
+    return tuple({_fold_text(alias) for alias in aliases})
+
+
+_MARKET_PRODUCTS = tuple(
+    product for product in CATALOG_PRODUCTS if product.reference_url is not None
+)
+_IDENTITY_ALIASES = tuple(
+    sorted(
+        ((alias, product) for product in _MARKET_PRODUCTS for alias in _identity_aliases(product)),
+        key=lambda item: len(item[0]),
+        reverse=True,
+    )
+)
+_PRODUCT_BY_MODEL = {product.model: product for product in _MARKET_PRODUCTS}
 
 
 def _catalog_identity(text: str) -> tuple[str, str, str]:
-    normalized = "".join(
-        character
-        for character in unicodedata.normalize("NFKD", text.casefold())
-        if not unicodedata.combining(character)
-    )
-    if "iphone 17 pro max" in normalized:
-        return "apple", "iphone_17_pro_max", "Apple iPhone 17 Pro Max"
-    if "iphone 17 pro" in normalized:
-        return "apple", "iphone_17_pro", "Apple iPhone 17 Pro"
-    if "iphone 17" in normalized:
-        return "apple", "iphone_17", "Apple iPhone 17"
-    if "galaxy s26 ultra" in normalized:
-        return "samsung", "galaxy_s26_ultra", "Samsung Galaxy S26 Ultra"
-    if "galaxy s26+" in normalized or "galaxy s26 plus" in normalized:
-        return "samsung", "galaxy_s26_plus", "Samsung Galaxy S26+"
-    if "galaxy s26" in normalized:
-        return "samsung", "galaxy_s26", "Samsung Galaxy S26"
+    normalized = f" {_fold_text(text)} "
+    for alias, product in _IDENTITY_ALIASES:
+        if f" {alias} " in normalized:
+            return product.brand.casefold(), product.model, product.name
     raise ExtractionError("retail product is outside the canonical device catalog")
 
 
 def _storage_from_text(text: str) -> str:
-    match = re.search(r"\b(256|512|1024|2048)\s*gb\b|\b([12])\s*tb\b", text, re.I)
+    match = re.search(r"\b(128|256|512|1024|2048)\s*gb\b|\b([12])\s*tb\b", text, re.I)
     if not match:
         raise ExtractionError("retail offer is missing storage capacity")
     if match.group(2):
@@ -150,29 +137,42 @@ def _storage_from_text(text: str) -> str:
     return str(match.group(1))
 
 
+_MODEL_COLOR_ALIASES: dict[str, dict[str, str]] = {
+    "iphone_16": {"verde": "Verde-Acinzentado"},
+    "iphone_16_plus": {"verde": "Verde-Acinzentado"},
+    "iphone_16_pro": {
+        "preto": "Titânio-Preto",
+        "branco": "Titânio-Branco",
+        "natural": "Titânio-Natural",
+        "deserto": "Titânio-Deserto",
+    },
+    "iphone_16_pro_max": {
+        "preto": "Titânio-Preto",
+        "branco": "Titânio-Branco",
+        "natural": "Titânio-Natural",
+        "deserto": "Titânio-Deserto",
+    },
+    "iphone_17_pro": {"prata": "Prateado", "azul": "Azul-Intenso"},
+    "iphone_17_pro_max": {"prata": "Prateado", "azul": "Azul-Intenso"},
+    "galaxy_s25_ultra": {
+        "azul": "Titânio-Azul",
+        "preto": "Titânio-Preto",
+        "cinza": "Titânio-Cinza",
+        "prata": "Titânio-Prata",
+    },
+}
+
+
 def _color_from_text(text: str, *, model: str) -> str:
-    folded = "".join(
-        character
-        for character in unicodedata.normalize("NFKD", text.casefold())
-        if not unicodedata.combining(character)
-    )
-    folded = re.sub(r"[^a-z0-9]+", " ", folded)
-    aliases = {
-        "azul intenso": "Azul-Intenso",
-        "laranja cosmico": "Laranja-Cósmico",
-        "azul nevoa": "Azul-Névoa",
-        "salvia": "Sálvia",
-        "prateado": "Prateado",
-        "prata": "Prateado" if model.startswith("iphone_17_pro") else "Prata",
-        "lavanda": "Lavanda",
-        "violeta": "Violeta",
-        "dourado": "Dourado",
-        "branco": "Branco",
-        "preto": "Preto",
-        "azul": "Azul-Intenso" if model.startswith("iphone_17_pro") else "Azul",
-    }
-    for marker, canonical in aliases.items():
-        if marker in folded:
+    product = _PRODUCT_BY_MODEL.get(model)
+    if product is None:
+        raise ExtractionError(f"unknown canonical model: {model!r}")
+
+    folded = f" {_fold_text(text)} "
+    aliases = {_fold_text(color): color for color in product.colors}
+    aliases.update(_MODEL_COLOR_ALIASES.get(model, {}))
+    for marker, canonical in sorted(aliases.items(), key=lambda item: len(item[0]), reverse=True):
+        if f" {_fold_text(marker)} " in folded:
             return canonical
     raise ExtractionError(f"retail offer is missing a supported color: {text!r}")
 
@@ -606,8 +606,9 @@ def extract_iplace_listings(page_html: str, page_url: str) -> list[RetailListing
         if len(listings) >= MAX_PRODUCT_VARIANTS:
             break
         name = str(product.get("name", "")).strip()
-        match = _IPHONE_17_NAME.search(name)
-        if not match:
+        try:
+            attributes = _canonical_attributes(name)
+        except ExtractionError:
             continue
         offer = _offer(product)
         sku = str(product.get("sku") or offer.get("sku") or "").strip()
@@ -623,7 +624,7 @@ def extract_iplace_listings(page_html: str, page_url: str) -> list[RetailListing
                 # iPlace identifiers remain attribute-matched until each GTIN is
                 # independently verified against the canonical catalog.
                 gtin=None,
-                attributes=_iphone_attributes(match.group("storage"), match.group("color")),
+                attributes=attributes,
                 seller_external_id="iplace",
                 seller_display_name=str(seller.get("name") or "iPlace"),
                 price_amount=_price(offer),
@@ -635,7 +636,7 @@ def extract_iplace_listings(page_html: str, page_url: str) -> list[RetailListing
             )
         )
     if not listings:
-        raise ExtractionError("no iPhone 17 variants found in iPlace JSON-LD")
+        raise ExtractionError("no canonical iPhone variants found in iPlace JSON-LD")
     return listings
 
 
@@ -760,12 +761,13 @@ def extract_samsung_shop_listings(page_html: str, page_url: str) -> list[RetailL
         if len(listings) >= MAX_PRODUCT_VARIANTS:
             break
         name = str(product.get("name", "")).strip()
-        match = _GALAXY_S26_NAME.search(name)
-        if not match:
+        color = str(product.get("color") or "").strip()
+        try:
+            attributes = _canonical_attributes(f"{name} {color}")
+        except ExtractionError:
             continue
         offer = _offer(product)
         sku = str(product.get("sku") or product.get("mpn") or "").strip()
-        color = str(product.get("color") or "").strip()
         if not sku or not color:
             # The VTEX page also emits one summary Product block without a
             # color. Only ProductGroup variants identify a canonical SKU.
@@ -781,11 +783,7 @@ def extract_samsung_shop_listings(page_html: str, page_url: str) -> list[RetailL
                 # attribute-match until a separate catalog enrichment step has
                 # verified and persisted every Samsung SKU/GTIN pair.
                 gtin=None,
-                attributes=_galaxy_attributes(
-                    model_suffix=match.group("suffix") or "",
-                    storage=match.group("storage"),
-                    color=color,
-                ),
+                attributes=attributes,
                 seller_external_id="samsung-shop-brasil",
                 seller_display_name=str(seller.get("name") or "Samsung Shop Brasil"),
                 price_amount=_price(offer),
@@ -797,7 +795,7 @@ def extract_samsung_shop_listings(page_html: str, page_url: str) -> list[RetailL
             )
         )
     if not listings:
-        raise ExtractionError("no Galaxy S26 variants found in Samsung Shop JSON-LD")
+        raise ExtractionError("no canonical Galaxy variants found in Samsung Shop JSON-LD")
     return listings
 
 

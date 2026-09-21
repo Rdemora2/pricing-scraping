@@ -100,6 +100,153 @@ SOURCES = (
         status="enabled",
     ),
     SeedSource(
+        name="Zoom — Apple iPhone 16",
+        base_url=("https://www.zoom.com.br/celular/smartphone-apple-iphone-16-128gb-camera-dupla"),
+        kind="real",
+        adapter_name="zoom",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Zoom — Apple iPhone 16 Plus",
+        base_url=(
+            "https://www.zoom.com.br/celular/smartphone-apple-iphone-16-plus-128gb-camera-dupla"
+        ),
+        kind="real",
+        adapter_name="zoom",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Zoom — Apple iPhone 16 Pro",
+        base_url=(
+            "https://www.zoom.com.br/celular/smartphone-apple-iphone-16-pro-128gb-camera-tripla"
+        ),
+        kind="real",
+        adapter_name="zoom",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Zoom — Apple iPhone 16 Pro Max",
+        base_url=("https://www.zoom.com.br/celular/smartphone-apple-iphone-16-pro-max-256gb"),
+        kind="real",
+        adapter_name="zoom",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Zoom — Apple iPhone Air",
+        base_url="https://www.zoom.com.br/celular/celular-apple-iphone-air-256gb",
+        kind="real",
+        adapter_name="zoom",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Zoom — Samsung Galaxy S25",
+        base_url=("https://www.zoom.com.br/celular/celular-samsung-galaxy-s25-5g-256gb-12-gb"),
+        kind="real",
+        adapter_name="zoom",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Zoom — Samsung Galaxy S25+",
+        base_url=("https://www.zoom.com.br/celular/celular-samsung-galaxy-s25-plus-5g-256gb-12-gb"),
+        kind="real",
+        adapter_name="zoom",
+    ),
+    SeedSource(
+        name="Zoom — Samsung Galaxy S25 Ultra",
+        base_url=(
+            "https://www.zoom.com.br/celular/celular-samsung-galaxy-s25-ultra-5g-256gb-12-gb"
+        ),
+        kind="real",
+        adapter_name="zoom",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Buscapé — Apple iPhone 16",
+        base_url=(
+            "https://www.buscape.com.br/celular/smartphone-apple-iphone-16-128gb-camera-dupla"
+        ),
+        kind="real",
+        adapter_name="buscape",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Buscapé — Apple iPhone 16 Plus",
+        base_url=(
+            "https://www.buscape.com.br/celular/smartphone-apple-iphone-16-plus-128gb-camera-dupla"
+        ),
+        kind="real",
+        adapter_name="buscape",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Buscapé — Apple iPhone 16 Pro",
+        base_url=(
+            "https://www.buscape.com.br/celular/smartphone-apple-iphone-16-pro-128gb-camera-tripla"
+        ),
+        kind="real",
+        adapter_name="buscape",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Buscapé — Apple iPhone 16 Pro Max",
+        base_url=("https://www.buscape.com.br/celular/smartphone-apple-iphone-16-pro-max-256gb"),
+        kind="real",
+        adapter_name="buscape",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Buscapé — Apple iPhone Air",
+        base_url="https://www.buscape.com.br/celular/celular-apple-iphone-air-256gb",
+        kind="real",
+        adapter_name="buscape",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Buscapé — Samsung Galaxy S25",
+        base_url=("https://www.buscape.com.br/celular/celular-samsung-galaxy-s25-5g-256gb-12-gb"),
+        kind="real",
+        adapter_name="buscape",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Buscapé — Samsung Galaxy S25+",
+        base_url=(
+            "https://www.buscape.com.br/celular/celular-samsung-galaxy-s25-plus-5g-256gb-12-gb"
+        ),
+        kind="real",
+        adapter_name="buscape",
+    ),
+    SeedSource(
+        name="Buscapé — Samsung Galaxy S25 Ultra",
+        base_url=(
+            "https://www.buscape.com.br/celular/celular-samsung-galaxy-s25-ultra-5g-256gb-12-gb"
+        ),
+        kind="real",
+        adapter_name="buscape",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Samsung Shop — Galaxy S25",
+        base_url="https://shop.samsung.com/br/galaxy-s25/p",
+        kind="real",
+        adapter_name="samsung_shop",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Samsung Shop — Galaxy S25+",
+        base_url="https://shop.samsung.com/br/galaxy-s25-plus/p",
+        kind="real",
+        adapter_name="samsung_shop",
+        status="enabled",
+    ),
+    SeedSource(
+        name="Samsung Shop — Galaxy S25 Ultra",
+        base_url="https://shop.samsung.com/br/galaxy-s25-ultra/p",
+        kind="real",
+        adapter_name="samsung_shop",
+        status="enabled",
+    ),
+    SeedSource(
         name="Samsung Shop — Galaxy S26",
         base_url="https://shop.samsung.com/br/galaxy-s26/p",
         kind="real",

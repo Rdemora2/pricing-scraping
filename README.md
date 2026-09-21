@@ -148,16 +148,20 @@ oficial versionada no código: linha iPhone 16, iPhone 17, iPhone Air e iPhone 1
 Pro; Galaxy S25 e S26; e Motorola Edge 70 Pro. O laboratório adiciona somente
 três variantes Nimbus isoladas. O cadastro amplo não é apresentado como cobertura
 de preço: coletores permanecem habilitados apenas para as páginas efetivamente
-revisadas. Fontes habilitadas para as seis famílias prioritárias:
+revisadas. Há 51 fontes habilitadas no seed, duas delas reservadas ao laboratório.
+A normalização reconhece os 17 aparelhos de mercado e os coletores reais cobrem
+14 famílias comercialmente observáveis:
 
-- Samsung Shop, com variantes estruturadas dos três Galaxy;
-- Fast Shop, com páginas diretas dos três iPhones;
+- Samsung Shop, com variantes estruturadas das linhas Galaxy S25 e S26;
+- Fast Shop, com páginas diretas da linha iPhone 17;
 - KaBuM!, incluindo identificação do vendedor quando a página é marketplace;
-- Zoom, como canal agregador que preserva o varejista efetivo de cada oferta;
+- Zoom, como canal agregador para iPhone 16, iPhone Air, iPhone 17, Galaxy S25
+  e Galaxy S26, preservando o varejista efetivo de cada oferta;
 - 2aFinder, por documento Markdown público, com vendedor, canal, condição, frete,
   variante, timestamp e identificador de oferta;
-- Buscapé, pela página pública e pelo documento de ofertas que ela própria
-  consome, sem seguir redirecionamentos comerciais;
+- Buscapé, para as mesmas gerações Apple/Samsung homologadas, pela página
+  pública e pelo documento de ofertas que ela própria consome, sem seguir
+  redirecionamentos comerciais;
 - Amazon Brasil, pelo buy box visível da página de produto;
 - Americanas, preservando o vendedor efetivo publicado no marketplace;
 - Carrefour, preservando vendedor e preço à vista no Pix — inclusive ofertas
@@ -225,9 +229,13 @@ preservar histórico de coletas.
   verificáveis;
 - Apple Brasil é referência canônica, não fonte automatizada; seus termos vedam
   automação da página;
-- os modelos recém-cadastrados das linhas iPhone 16/18, Galaxy S25 e Motorola
-  ainda não possuem coletores habilitados; o portal mostra esse estado e orienta
-  a descoberta/qualificação, sem simular preço ou cobertura;
+- iPhone 18 Pro/Pro Max e Motorola Edge 70 Pro permanecem sem coletor habilitado:
+  a consulta pública não apresentou uma matriz brasileira estável e ampla o
+  suficiente para homologação. O portal mantém esses aparelhos prontos para
+  monitoramento, sem simular preço ou cobertura;
+- as páginas agregadoras do Galaxy S25+ permanecem candidatas porque as ofertas
+  atuais omitem a cor no dado estruturado. A fonte direta Samsung Shop está
+  habilitada e mantém o modelo coletável sem relaxar o match de variante;
 - Mercado Livre ainda exige homologação de sua integração oficial. Sem essa
   conexão, o sistema continua operando com os scrapers habilitados; Casas Bahia
   e Ponto permanecem candidatos a adaptadores diretos dedicados;

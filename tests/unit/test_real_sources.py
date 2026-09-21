@@ -417,6 +417,44 @@ def test_zoom_extracts_bounded_multi_retailer_sample() -> None:
     assert all(item.url.startswith("https://www.zoom.com.br/celular/") for item in listings)
 
 
+@pytest.mark.parametrize(
+    "product",
+    [product for product in PRODUCTS if product.reference_url is not None],
+    ids=lambda product: product.model,
+)
+def test_zoom_normalizes_every_market_product_in_the_catalog(product) -> None:
+    storage = product.storages_gb[0]
+    color = product.colors[0]
+    title = f"{product.name} {storage}GB {color.replace('-', ' ')}"
+    payload = {
+        "@type": "Product",
+        "name": product.name,
+        "offers": {
+            "@type": "AggregateOffer",
+            "offers": [
+                {
+                    "@type": "Offer",
+                    "id": f"offer-{product.model}",
+                    "name": title,
+                    "offeredBy": "Varejista homologado",
+                    "price": "4999.90",
+                    "priceCurrency": "BRL",
+                }
+            ],
+        },
+    }
+
+    listing = extract_zoom_listings(_html(payload), "https://www.zoom.com.br/celular/item")[0]
+
+    assert listing.attributes == {
+        "brand": product.brand.casefold(),
+        "model": product.model,
+        "region": "br",
+        "storage_gb": storage,
+        "color": color,
+    }
+
+
 def test_zoom_caps_untrusted_aggregate_offer_count() -> None:
     offers = [
         {

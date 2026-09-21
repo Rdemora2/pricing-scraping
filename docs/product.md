@@ -42,10 +42,13 @@ comparação?" e "como armazenamento e cor alteram o preço observado deste mode
 - landing page própria e workspace com visão geral, aparelhos, fontes, radar,
   cadastro de equipamento e cadastro de referência.
 
-Catálogo e cobertura são contratos diferentes. As seis famílias iPhone 17 e
-Galaxy S26 possuem a matriz de coletores homologada abaixo; os demais aparelhos
-entram prontos para monitoramento e qualificação, mas permanecem sem preço até que
-uma fonte real seja revisada e habilitada.
+Catálogo e cobertura são contratos diferentes. Catorze famílias das linhas
+iPhone 16, iPhone Air, iPhone 17, Galaxy S25 e Galaxy S26 possuem ao menos um
+coletor real homologado. Isso não significa que todas as 221 variantes tenham
+oferta ativa: cada observação continua exigindo modelo, armazenamento e cor
+exatos. iPhone 18 Pro/Pro Max e Motorola Edge 70 Pro permanecem prontos para
+monitoramento e qualificação, sem preço, até que uma matriz brasileira pública
+e estável possa ser revisada e habilitada.
 
 ## População comparável
 
