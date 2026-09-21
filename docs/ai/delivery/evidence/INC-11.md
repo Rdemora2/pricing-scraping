@@ -1,5 +1,19 @@
 # INC-11 — perfil HTTP realista de navegador
 
+## Readback remoto
+
+- PR: [#10](https://github.com/Rdemora2/pricing-scraping/pull/10).
+- Checks no head `b90724f`: `governance` (pass), `GitGuardian Security
+  Checks` (pass) — únicos checks configurados neste repositório; não há
+  workflow remoto de teste/lint/build (política local-only do projeto).
+- `reviewDecision` vazio (sem review obrigatória configurada), `mergeable:
+  MERGEABLE`, `mergeStateStatus: CLEAN` relidos imediatamente antes da
+  decisão de merge.
+- Método: squash-merge, `--match-head-commit` no SHA acima. Commit resultante
+  em `main`: `f094500`.
+- `main` local sincronizada via `python3 .codex/safe_git_sync.py sync-main`
+  (fast-forward, worktree limpo).
+
 ## Escopo e aceite
 
 - Branch: `feature/inc-11-browser-realistic-http-profile`.

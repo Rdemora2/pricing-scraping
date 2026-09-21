@@ -1,8 +1,8 @@
 # Estado de execução
 
 **Atualizado em:** `2026-09-21`
-**Estado global:** `IN_REVIEW`
-**Unidade ativa:** `INC-11` — perfil HTTP realista de navegador; revisão funcional/segurança independentes concluídas nesta sessão com achados corrigidos (ver evidência); aguardando push/PR/CI remoto
+**Estado global:** `VERIFIED`
+**Unidade ativa:** `INC-11` — perfil HTTP realista de navegador; revisão funcional/segurança independentes concluídas, PR #10 mesclado (squash, `f094500`), checks remotos verdes
 
 O roadmap conclui o laboratório e avança o portal local de inteligência de
 preços com fontes reais. A entrega permanece limitada ao ambiente local; não
@@ -106,8 +106,11 @@ código. Corrigiram teto agregado ausente em `Retry-After`
 Playwright, parsing de dígito Unicode não-ASCII e uma lacuna de defesa em
 profundidade em quatro métodos de spider. Runtime local final: `uv run
 pytest` 171 passados e 2 integrações puladas sem `API_BASE_URL`; `ruff
-check`, `ruff format --check` e `ty check` verdes. Aguardando push, PR e CI
-remoto.
+check`, `ruff format --check` e `ty check` verdes. `PR #10` publicado,
+checks remotos (`governance`, GitGuardian) verdes, sem review obrigatória
+pendente, `mergeStateStatus=CLEAN`; squash-merge no SHA `f094500` com o head
+relido imediatamente antes da decisão. `main` local sincronizada via
+`.codex/safe_git_sync.py sync-main`.
 
 O reviewer independente aprovou localmente o ciclo 2 do INC-05 no fingerprint
 `fadb3ec6d99b17b80386d1296655a3ef65be8f3523e59bd2760133dcb64d0b75`, sem
