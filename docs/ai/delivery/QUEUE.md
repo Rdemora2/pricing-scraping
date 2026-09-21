@@ -16,7 +16,7 @@ ferramenta ou documentação do produto; esta fila é o índice operacional loca
 | 9 | `INC-08` | Auditoria integral endurece integridade de preços, imagens Docker, testes de runtime, catálogo oficial, arquitetura frontend e documentação | `.` | `INC-07B` | `LOCAL_VERIFIED_WITH_EXTERNAL_GATE` |
 | 10 | `INC-09` | Normalização cobre os 17 aparelhos de mercado e amplia fontes homologadas para toda família comercialmente observável, sem promover variantes ambíguas ou indisponíveis | `.` | `INC-08` | `BLOCKED_EXTERNAL` |
 | 11 | `INC-10` | Coletores representam fontes e pesquisam o aparelho internamente; UX acompanha a coleta e mantém armazenamento, cor e detalhe na mesma população comparável | `.` | `INC-08` | `LOCAL_VERIFIED_WITH_EXTERNAL_GATE` |
-| 12 | `INC-11` | Perfil HTTP negocia como um Chrome/Windows atual (UA, Client Hints) e respeita `Retry-After` em HTTP 429, reduzindo bloqueio por perfil de headers incomum, sem contornar `robots.txt`, CAPTCHA, autenticação ou escalar bloqueio para o fallback de navegador | `.` | `INC-07B` | `IN_REVIEW` |
+| 12 | `INC-11` | Perfil HTTP negocia como um Chrome/Windows atual (UA, Client Hints) e respeita `Retry-After` em HTTP 429, reduzindo bloqueio por perfil de headers incomum, sem contornar `robots.txt`, CAPTCHA, autenticação ou escalar bloqueio para o fallback de navegador | `.` | `INC-07B` | `VERIFIED` |
 
 Fila vazia significa governança ainda não adotada; não invente unidades.
 
