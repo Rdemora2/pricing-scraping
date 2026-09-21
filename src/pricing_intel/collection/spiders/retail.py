@@ -6,10 +6,12 @@ do not log in, solve challenges or retry around access controls.
 
 from __future__ import annotations
 
+import re
 import socket
-from urllib.parse import urljoin
+from urllib.parse import quote, quote_plus, urljoin, urlsplit
 
 import scrapy
+from scrapy_playwright.page import PageMethod
 
 from pricing_intel.collection.browser import browser_request_meta
 from pricing_intel.collection.extraction import ExtractionError
@@ -25,6 +27,7 @@ from pricing_intel.collection.real_sources import (
     extract_fast_shop_listing,
     extract_iplace_listings,
     extract_kabum_listing,
+    extract_product_search_urls,
     extract_samsung_shop_listings,
     extract_zoom_listings,
 )
@@ -44,6 +47,9 @@ class _RetailSpider(scrapy.Spider):
         source_id: str | None = None,
         run_id: str | None = None,
         base_url: str | None = None,
+        product_name: str | None = None,
+        product_model: str | None = None,
+        storages: str | None = None,
         *args,
         **kwargs,
     ):
@@ -53,10 +59,50 @@ class _RetailSpider(scrapy.Spider):
         self.source_id = source_id
         self.run_id = run_id
         self.base_url = base_url
+        self.product_name = product_name
+        self.product_model = product_model
+        self.storages = tuple(item for item in (storages or "").split(",") if item)
         self.browser_resolver: Resolver = socket.getaddrinfo
 
     async def start(self):
         yield scrapy.Request(self.base_url, callback=self.parse_product)
+
+    def catalog_search_requests(self, callback):
+        if not self.product_name or not self.product_model or not self.storages:
+            raise ValueError(f"{self.name} requires a canonical product search context")
+        for storage in self.storages:
+            capacity = f"{int(storage) // 1024}TB" if int(storage) >= 1024 else f"{storage}GB"
+            yield scrapy.Request(
+                self.catalog_search_url(capacity),
+                callback=callback,
+                cb_kwargs={"storage_gb": storage},
+            )
+
+    def catalog_search_url(self, capacity: str) -> str:
+        query = quote(f"{self.product_name} {capacity}".replace(" ", "+"), safe="")
+        return urljoin(self.base_url, f"busca/{query}")
+
+    def product_requests_from_search(
+        self,
+        response: scrapy.http.Response,
+        *,
+        storage_gb: str,
+        product_path_markers: tuple[str, ...] = ("/celular/",),
+    ):
+        if any(marker in urlsplit(response.url).path for marker in product_path_markers):
+            yield scrapy.Request(response.url, callback=self.parse_product, dont_filter=True)
+            return
+        urls = extract_product_search_urls(
+            response.text,
+            response.url,
+            product_name=self.product_name or "",
+            product_model=self.product_model or "",
+            storage_gb=storage_gb,
+            product_path_markers=product_path_markers,
+        )
+        for url in urls:
+            validate_reference_url(url, allowed_hosts=self.allowed_domains)
+            yield scrapy.Request(url, callback=self.parse_product)
 
     def browser_fallback_request(self, url: str) -> scrapy.Request:
         if not self.browser_fallback_enabled:
@@ -70,6 +116,33 @@ class _RetailSpider(scrapy.Spider):
                 allowed_hosts=allowed_hosts,
                 resolver=self.browser_resolver,
             ),
+        )
+
+    def browser_search_request(
+        self,
+        response: scrapy.http.Response,
+        *,
+        callback,
+        storage_gb: str,
+        wait_selector: str,
+    ) -> scrapy.Request:
+        """Render one search page once when its HTTP body has no product links."""
+        if not self.browser_fallback_enabled:
+            raise RuntimeError(f"{self.name} does not support browser fallback")
+        allowed_hosts = self.browser_allowed_domains or self.allowed_domains
+        meta = browser_request_meta(
+            allowed_hosts=allowed_hosts,
+            resolver=self.browser_resolver,
+        )
+        meta["playwright_page_methods"] = [
+            PageMethod("wait_for_selector", wait_selector, timeout=10_000)
+        ]
+        return scrapy.Request(
+            response.url,
+            callback=callback,
+            cb_kwargs={"storage_gb": storage_gb},
+            dont_filter=True,
+            meta=meta,
         )
 
     def parse_product(self, response: scrapy.http.Response):
@@ -152,11 +225,46 @@ class AmazonSpider(_RetailSpider):
         "images-na.ssl-images-amazon.com",
     )
     custom_settings = {  # noqa: RUF012 - Scrapy class contract
-        "CLOSESPIDER_PAGECOUNT": 3,
+        "CLOSESPIDER_PAGECOUNT": 40,
         # Keep rendering minimal and do not emulate a signed-in customer
         # profile. The global, transparent representation headers still apply.
         "COMPRESSION_ENABLED": False,
     }
+
+    def catalog_search_url(self, capacity: str) -> str:
+        return urljoin(self.base_url, f"s?k={quote_plus(f'{self.product_name} {capacity}')}")
+
+    async def start(self):
+        for request in self.catalog_search_requests(self.parse_search):
+            yield request
+
+    def parse_search(self, response: scrapy.http.Response, *, storage_gb: str):
+        if response.status != 200:
+            self.logger.error("Amazon search refused with HTTP %s", response.status)
+            return
+        try:
+            self.response_text(response)
+        except ExtractionError as exc:
+            self.logger.error("Amazon search is not a readable HTML response: %s", exc)
+            return
+        requests = list(
+            self.product_requests_from_search(
+                response,
+                storage_gb=storage_gb,
+                product_path_markers=("/dp/",),
+            )
+        )
+        if requests:
+            yield from requests
+        elif response.meta.get("playwright"):
+            self.logger.error("Amazon rendered search returned no canonical products")
+        else:
+            yield self.browser_search_request(
+                response,
+                callback=self.parse_search,
+                storage_gb=storage_gb,
+                wait_selector="a[href*='/dp/']",
+            )
 
     def parse_product(self, response: scrapy.http.Response):
         try:
@@ -182,7 +290,22 @@ class CarrefourSpider(_RetailSpider):
     extractor_name = "carrefour_product_pix"
     browser_fallback_enabled = True
     browser_allowed_domains = ("www.carrefour.com.br", "carrefourbr.vtexassets.com")
-    custom_settings = {"CLOSESPIDER_PAGECOUNT": 3}  # noqa: RUF012
+    custom_settings = {"CLOSESPIDER_PAGECOUNT": 32}  # noqa: RUF012
+
+    def catalog_search_url(self, capacity: str) -> str:
+        query = quote(f"{self.product_name} {capacity}", safe="")
+        return urljoin(self.base_url, f"busca/{query}")
+
+    async def start(self):
+        for request in self.catalog_search_requests(self.parse_search):
+            yield request
+
+    def parse_search(self, response: scrapy.http.Response, *, storage_gb: str):
+        yield from self.product_requests_from_search(
+            response,
+            storage_gb=storage_gb,
+            product_path_markers=("/produto/",),
+        )
 
     def parse_product(self, response: scrapy.http.Response):
         try:
@@ -208,7 +331,42 @@ class AmericanasSpider(_RetailSpider):
     extractor_name = "americanas_product_jsonld"
     browser_fallback_enabled = True
     browser_allowed_domains = ("www.americanas.com.br", "americanas.vtexassets.com")
-    custom_settings = {"CLOSESPIDER_PAGECOUNT": 3}  # noqa: RUF012
+    custom_settings = {"CLOSESPIDER_PAGECOUNT": 40}  # noqa: RUF012
+
+    def catalog_search_url(self, capacity: str) -> str:
+        return urljoin(self.base_url, f"s?q={quote_plus(f'{self.product_name} {capacity}')}")
+
+    async def start(self):
+        for request in self.catalog_search_requests(self.parse_search):
+            yield request
+
+    def parse_search(self, response: scrapy.http.Response, *, storage_gb: str):
+        if response.status != 200:
+            self.logger.error("Americanas search refused with HTTP %s", response.status)
+            return
+        try:
+            self.response_text(response)
+        except ExtractionError as exc:
+            self.logger.error("Americanas search is not a readable HTML response: %s", exc)
+            return
+        requests = list(
+            self.product_requests_from_search(
+                response,
+                storage_gb=storage_gb,
+                product_path_markers=("/p",),
+            )
+        )
+        if requests:
+            yield from requests
+        elif response.meta.get("playwright"):
+            self.logger.error("Americanas rendered search returned no canonical products")
+        else:
+            yield self.browser_search_request(
+                response,
+                callback=self.parse_search,
+                storage_gb=storage_gb,
+                wait_selector="a[href$='/p'], a[href*='/p?']",
+            )
 
     def parse_product(self, response: scrapy.http.Response):
         try:
@@ -246,6 +404,51 @@ class KabumSpider(_RetailSpider):
     name = "kabum"
     allowed_domains = ("www.kabum.com.br",)
     extractor_name = "kabum_product_jsonld"
+    # Four HTTP searches, up to four JS fallbacks and three product pages per capacity.
+    custom_settings = {"CLOSESPIDER_PAGECOUNT": 24}  # noqa: RUF012
+    browser_fallback_enabled = True
+    browser_allowed_domains = ("www.kabum.com.br",)
+
+    def catalog_search_url(self, capacity: str) -> str:
+        query = re.sub(
+            r"[^a-z0-9]+",
+            "-",
+            f"{self.product_name} {capacity}".casefold(),
+        ).strip("-")
+        return urljoin(self.base_url, f"busca/{query}")
+
+    async def start(self):
+        for request in self.catalog_search_requests(self.parse_search):
+            yield request
+
+    def parse_search(self, response: scrapy.http.Response, *, storage_gb: str):
+        requests = list(
+            self.product_requests_from_search(
+                response,
+                storage_gb=storage_gb,
+                product_path_markers=("/produto/",),
+            )
+        )
+        if requests:
+            yield from requests
+            return
+        if response.meta.get("playwright"):
+            self.logger.error("KaBuM! rendered search returned no canonical products")
+            return
+        meta = browser_request_meta(
+            allowed_hosts=self.browser_allowed_domains,
+            resolver=self.browser_resolver,
+        )
+        meta["playwright_page_methods"] = [
+            PageMethod("wait_for_selector", "a[href*='/produto/']", timeout=10_000)
+        ]
+        yield scrapy.Request(
+            response.url,
+            callback=self.parse_search,
+            cb_kwargs={"storage_gb": storage_gb},
+            dont_filter=True,
+            meta=meta,
+        )
 
     def parse_product(self, response: scrapy.http.Response):
         try:
@@ -260,6 +463,18 @@ class SamsungShopSpider(_RetailSpider):
     name = "samsung_shop"
     allowed_domains = ("shop.samsung.com",)
     extractor_name = "samsung_shop_product_group_jsonld"
+    custom_settings = {"CLOSESPIDER_PAGECOUNT": 3}  # noqa: RUF012
+
+    async def start(self):
+        if not self.product_name or not self.product_model:
+            raise ValueError(f"{self.name} requires a canonical product search context")
+        if not self.product_model.startswith("galaxy_"):
+            raise ValueError(f"{self.name} only resolves canonical Galaxy models")
+        slug = self.product_model.replace("_plus", "-plus").replace("_", "-")
+        yield scrapy.Request(
+            urljoin(self.base_url, f"{slug}/p"),
+            callback=self.parse_product,
+        )
 
     def parse_product(self, response: scrapy.http.Response):
         try:
@@ -275,12 +490,48 @@ class ZoomSpider(_RetailSpider):
     name = "zoom"
     allowed_domains = ("www.zoom.com.br",)
     extractor_name = "zoom_aggregate_offer_jsonld"
+    # Four searches plus up to three product pages for each capacity.
+    custom_settings = {"CLOSESPIDER_PAGECOUNT": 20}  # noqa: RUF012
+
+    async def start(self):
+        for request in self.catalog_search_requests(self.parse_search):
+            yield request
+
+    def parse_search(self, response: scrapy.http.Response, *, storage_gb: str):
+        yield from self.product_requests_from_search(response, storage_gb=storage_gb)
 
     def parse_product(self, response: scrapy.http.Response):
         try:
             listings = extract_zoom_listings(response.text, response.url)
         except ExtractionError as exc:
             self.logger.error("Zoom extraction failed: %s", exc)
+            return
+        for listing in listings:
+            yield self.listing_item(response, listing)
+
+
+class BondfaroSpider(_RetailSpider):
+    name = "bondfaro"
+    allowed_domains = ("www.bondfaro.com.br",)
+    extractor_name = "bondfaro_aggregate_offer_jsonld"
+    custom_settings = {"CLOSESPIDER_PAGECOUNT": 20}  # noqa: RUF012
+
+    def catalog_search_url(self, capacity: str) -> str:
+        query = quote_plus(f"{self.product_name} {capacity}")
+        return urljoin(self.base_url, f"busca/{query}")
+
+    async def start(self):
+        for request in self.catalog_search_requests(self.parse_search):
+            yield request
+
+    def parse_search(self, response: scrapy.http.Response, *, storage_gb: str):
+        yield from self.product_requests_from_search(response, storage_gb=storage_gb)
+
+    def parse_product(self, response: scrapy.http.Response):
+        try:
+            listings = extract_zoom_listings(response.text, response.url)
+        except ExtractionError as exc:
+            self.logger.error("Bondfaro extraction failed: %s", exc)
             return
         for listing in listings:
             yield self.listing_item(response, listing)
@@ -306,11 +557,19 @@ class TwoAFinderSpider(_RetailSpider):
 class BuscapeSpider(_RetailSpider):
     name = "buscape"
     # Product page + public offer document, plus one robots.txt fetch per host.
-    custom_settings = {"CLOSESPIDER_PAGECOUNT": 5}  # noqa: RUF012 - Scrapy contract
+    # Four searches, up to twelve product pages and one offer document per page.
+    custom_settings = {"CLOSESPIDER_PAGECOUNT": 32}  # noqa: RUF012 - Scrapy contract
     allowed_domains = ("www.buscape.com.br", "api-v1.zoom.com.br")
     extractor_name = "buscape_public_product_offers"
     extractor_version = "1.0.0"
     parser = BuscapeOfferParser()
+
+    async def start(self):
+        for request in self.catalog_search_requests(self.parse_search):
+            yield request
+
+    def parse_search(self, response: scrapy.http.Response, *, storage_gb: str):
+        yield from self.product_requests_from_search(response, storage_gb=storage_gb)
 
     def parse_product(self, response: scrapy.http.Response):
         try:

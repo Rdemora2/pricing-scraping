@@ -15,10 +15,20 @@ from pricing_intel.collection.real_sources import (
     extract_fast_shop_listing,
     extract_iplace_listings,
     extract_kabum_listing,
+    extract_product_search_urls,
     extract_samsung_shop_listings,
     extract_zoom_listings,
 )
-from pricing_intel.collection.spiders.retail import BuscapeSpider
+from pricing_intel.collection.spiders.retail import (
+    AmazonSpider,
+    AmericanasSpider,
+    BondfaroSpider,
+    BuscapeSpider,
+    CarrefourSpider,
+    KabumSpider,
+    SamsungShopSpider,
+    ZoomSpider,
+)
 from pricing_intel.domain.enums import Availability, Condition
 from pricing_intel.matching.signature import compute_signature
 from scripts.seed_catalog import PRODUCTS
@@ -415,6 +425,131 @@ def test_zoom_extracts_bounded_multi_retailer_sample() -> None:
     }
     assert all(item.payment_terms.price_basis.value == "cash" for item in listings)
     assert all(item.url.startswith("https://www.zoom.com.br/celular/") for item in listings)
+
+
+def test_search_discovery_keeps_only_exact_same_host_product_pages() -> None:
+    page = """
+      <a href="/celular/celular-apple-iphone-17-pro-max-512gb">iPhone 17 Pro Max 512GB</a>
+      <a href="/celular/celular-apple-iphone-17-pro-512gb">iPhone 17 Pro 512GB</a>
+      <a href="https://attacker.example/celular/apple-iphone-17-pro-max-512gb">externo</a>
+      <a href="/celular/celular-apple-iphone-17-pro-max-256gb">iPhone 17 Pro Max 256GB</a>
+    """
+
+    urls = extract_product_search_urls(
+        page,
+        "https://www.zoom.com.br/busca/apple%2Biphone%2B17%2Bpro%2Bmax%2B512gb",
+        product_name="Apple iPhone 17 Pro Max",
+        product_model="iphone_17_pro_max",
+        storage_gb="512",
+    )
+
+    assert urls == ["https://www.zoom.com.br/celular/celular-apple-iphone-17-pro-max-512gb"]
+
+
+@pytest.mark.parametrize(
+    ("product_name", "product_model", "expected_path"),
+    [
+        ("Apple iPhone 17", "iphone_17", "/celular/apple-iphone-17-256gb"),
+        ("Apple iPhone 17 Pro", "iphone_17_pro", "/celular/apple-iphone-17-pro-256gb"),
+        (
+            "Apple iPhone 17 Pro Max",
+            "iphone_17_pro_max",
+            "/celular/apple-iphone-17-pro-max-256gb",
+        ),
+        ("Samsung Galaxy S26", "galaxy_s26", "/celular/samsung-galaxy-s26-256gb"),
+        ("Samsung Galaxy S26+", "galaxy_s26_plus", "/celular/samsung-galaxy-s26-plus-256gb"),
+    ],
+)
+def test_search_discovery_does_not_mix_neighboring_models(
+    product_name: str, product_model: str, expected_path: str
+) -> None:
+    paths = [
+        "/celular/apple-iphone-17-256gb",
+        "/celular/apple-iphone-17-pro-256gb",
+        "/celular/apple-iphone-17-pro-max-256gb",
+        "/celular/samsung-galaxy-s26-256gb",
+        "/celular/samsung-galaxy-s26-plus-256gb",
+        "/celular/samsung-galaxy-s26-ultra-256gb",
+    ]
+    page = "".join(f'<a href="{path}">{path.replace("-", " ")}</a>' for path in paths)
+
+    urls = extract_product_search_urls(
+        page,
+        "https://www.zoom.com.br/busca/produto",
+        product_name=product_name,
+        product_model=product_model,
+        storage_gb="256",
+    )
+
+    assert urls == [f"https://www.zoom.com.br{expected_path}"]
+
+
+def test_search_discovery_can_resolve_model_landing_page_without_capacity() -> None:
+    page = """
+      <a href="/br/smartphones/galaxy-s26-ultra/">Galaxy S26 Ultra</a>
+      <a href="/br/smartphones/galaxy-s26/">Galaxy S26</a>
+    """
+
+    urls = extract_product_search_urls(
+        page,
+        "https://www.samsung.com/br/aisearch/?searchvalue=Galaxy+S26+Ultra",
+        product_name="Samsung Galaxy S26 Ultra",
+        product_model="galaxy_s26_ultra",
+        storage_gb=None,
+        product_path_markers=("/smartphones/",),
+    )
+
+    assert urls == ["https://www.samsung.com/br/smartphones/galaxy-s26-ultra/"]
+
+
+@pytest.mark.asyncio
+async def test_samsung_resolves_product_route_from_canonical_model() -> None:
+    spider = SamsungShopSpider(
+        source_id="source-1",
+        run_id="run-1",
+        base_url="https://shop.samsung.com/br/",
+        product_name="Samsung Galaxy S26 Ultra",
+        product_model="galaxy_s26_ultra",
+        storages="256,512,1024",
+    )
+    requests = [request async for request in spider.start()]
+
+    assert [item.url for item in requests] == ["https://shop.samsung.com/br/galaxy-s26-ultra/p"]
+    assert requests[0].callback == spider.parse_product
+
+
+@pytest.mark.parametrize(
+    "spider_class",
+    [
+        AmazonSpider,
+        AmericanasSpider,
+        BondfaroSpider,
+        CarrefourSpider,
+        ZoomSpider,
+        BuscapeSpider,
+        KabumSpider,
+    ],
+)
+def test_search_collectors_query_every_catalog_capacity(spider_class) -> None:
+    spider = spider_class(
+        source_id="00000000-0000-0000-0000-000000000001",
+        run_id="00000000-0000-0000-0000-000000000002",
+        base_url=f"https://www.{spider_class.name}.com.br/",
+        product_name="Apple iPhone 17 Pro Max",
+        product_model="iphone_17_pro_max",
+        storages="256,512,1024,2048",
+    )
+
+    requests = list(spider.catalog_search_requests(spider.parse_search))
+
+    assert len(requests) == 4
+    assert all(any(marker in request.url for marker in ("/busca/", "/s?")) for request in requests)
+    assert {request.cb_kwargs["storage_gb"] for request in requests} == {
+        "256",
+        "512",
+        "1024",
+        "2048",
+    }
 
 
 @pytest.mark.parametrize(

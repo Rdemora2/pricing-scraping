@@ -69,6 +69,8 @@ def test_analyzes_storage_value_and_normalized_color_premium() -> None:
     assert result.sample_status == "strong"
     assert result.storages_gb == (256, 512, 1024)
     assert result.colors == ("Branco", "Preto")
+    assert len(result.variant_analysis) == 6
+    assert all(item.offer_count > 0 for item in result.variant_analysis)
     assert result.min_price_minor_units == 600_000
     assert result.max_price_minor_units == 980_000
     assert result.best_value_storage is not None
@@ -101,6 +103,8 @@ def test_no_market_data_keeps_catalog_visible_without_inventing_insights() -> No
     assert result.best_value_storage is None
     assert result.cheapest_color is None
     assert [item.observed_variant_count for item in result.storage_analysis] == [0, 0]
+    assert [item.offer_count for item in result.variant_analysis] == [0, 0]
+    assert all(item.median_price_minor_units is None for item in result.variant_analysis)
 
 
 def test_single_storage_does_not_claim_best_value() -> None:

@@ -1,5 +1,6 @@
 from pricing_intel.catalog import CATALOG_PRODUCTS
 from pricing_intel.matching.signature import compute_signature
+from scripts.seed_catalog import SOURCES
 
 
 def test_catalog_covers_reviewed_flagship_families() -> None:
@@ -60,3 +61,84 @@ def test_lab_catalog_keeps_only_the_three_supported_variants() -> None:
 
     assert variants == {("128", "Preto"), ("256", "Preto"), ("128", "Azul")}
     assert all(variant.gtin is not None for variant in nimbus.variants)
+
+
+def test_search_capable_sources_are_registered_once_at_domain_root() -> None:
+    dynamic_sources = [
+        item
+        for item in SOURCES
+        if item.adapter_name
+        in {
+            "amazon",
+            "americanas",
+            "carrefour",
+            "zoom",
+            "buscape",
+            "kabum",
+            "bondfaro",
+            "samsung_shop",
+        }
+    ]
+
+    assert {(item.name, item.base_url) for item in dynamic_sources} == {
+        ("Amazon Brasil", "https://www.amazon.com.br/"),
+        ("Americanas", "https://www.americanas.com.br/"),
+        ("Carrefour", "https://www.carrefour.com.br/"),
+        ("Zoom", "https://www.zoom.com.br/"),
+        ("Buscapé", "https://www.buscape.com.br/"),
+        ("KaBuM!", "https://www.kabum.com.br/"),
+        ("Bondfaro", "https://www.bondfaro.com.br/"),
+        ("Samsung Shop", "https://shop.samsung.com/br/"),
+    }
+    assert {item.name for item in dynamic_sources if item.status == "enabled"} == {
+        "Americanas",
+        "Buscapé",
+        "Carrefour",
+        "KaBuM!",
+        "Samsung Shop",
+        "Zoom",
+    }
+
+
+def test_national_source_portfolio_is_registered_without_fake_enablement() -> None:
+    by_name = {item.name: item for item in SOURCES}
+    expected_candidates = {
+        "Amazon Brasil",
+        "Casas Bahia",
+        "Ponto",
+        "Extra",
+        "Magalu",
+        "Mercado Livre",
+        "Shopee Brasil",
+        "AliExpress Brasil",
+        "Fast Shop",
+        "Pichau",
+        "TerabyteShop",
+        "Claro Loja Online",
+        "Vivo Loja Online",
+        "TIM Loja Online",
+        "JáCotei",
+        "Promobit",
+        "Pelando",
+        "Bondfaro",
+    }
+
+    assert expected_candidates <= by_name.keys()
+    assert all(by_name[name].status == "candidate" for name in expected_candidates)
+    assert by_name["Magalu"].base_url == "https://www.magazineluiza.com.br/"
+    assert by_name["Ponto"].base_url == "https://www.ponto.com.br/"
+
+
+def test_only_validated_market_search_collectors_are_enabled() -> None:
+    enabled_market = {
+        item.name for item in SOURCES if item.kind == "real" and item.status == "enabled"
+    }
+
+    assert enabled_market == {
+        "Americanas",
+        "Buscapé",
+        "Carrefour",
+        "KaBuM!",
+        "Samsung Shop",
+        "Zoom",
+    }

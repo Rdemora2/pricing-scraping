@@ -13,6 +13,7 @@ import unicodedata
 from contextlib import suppress
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+from urllib.parse import unquote, urljoin, urlsplit
 
 from parsel import Selector
 
@@ -28,6 +29,7 @@ from pricing_intel.domain.models import PaymentTerms, ShippingTerms
 
 MAX_PRODUCT_VARIANTS = 24
 MAX_AGGREGATE_OFFERS = 20
+MAX_SEARCH_RESULTS_PER_CAPACITY = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,6 +199,69 @@ def _plain_text(fragment: str) -> str:
     """Collapse a small, already-bounded HTML fragment into visible text."""
     without_tags = re.sub(r"<[^>]+>", " ", fragment)
     return re.sub(r"\s+", " ", html_module.unescape(without_tags)).strip()
+
+
+def extract_product_search_urls(
+    page_html: str,
+    page_url: str,
+    *,
+    product_name: str,
+    product_model: str,
+    storage_gb: str | None,
+    product_path_markers: tuple[str, ...] = ("/celular/",),
+) -> list[str]:
+    """Select exact product pages from one retailer search result.
+
+    Search pages are untrusted discovery surfaces. The adapter keeps only
+    same-host smartphone URLs whose visible/link text includes the canonical
+    product identity and requested capacity; every followed page is parsed
+    again by the retailer-specific product extractor.
+    """
+    selector = Selector(text=page_html)
+    expected_product_tokens = set(_fold_text(product_name).split())
+    storage_markers: set[str] = set()
+    if storage_gb is not None:
+        storage_value = int(storage_gb)
+        storage_markers = {
+            f"{storage_value} gb",
+            f"{storage_value}gb",
+            f"{storage_value // 1024} tb" if storage_value >= 1024 else "",
+            f"{storage_value // 1024}tb" if storage_value >= 1024 else "",
+        }
+    source_host = (urlsplit(page_url).hostname or "").casefold()
+    results: list[str] = []
+    seen: set[str] = set()
+
+    for anchor in selector.css("a[href]"):
+        href = anchor.attrib.get("href", "").strip()
+        if not href:
+            continue
+        candidate = urljoin(page_url, href)
+        parsed = urlsplit(candidate)
+        if (parsed.hostname or "").casefold() != source_host or not any(
+            marker in parsed.path for marker in product_path_markers
+        ):
+            continue
+        visible = " ".join(anchor.css("::text").getall())
+        haystack = _fold_text(f"{unquote(candidate)} {visible}")
+        if not expected_product_tokens <= set(haystack.split()):
+            continue
+        try:
+            _, discovered_model, _ = _catalog_identity(haystack)
+        except ExtractionError:
+            continue
+        if discovered_model != product_model:
+            continue
+        if storage_markers and not any(marker and marker in haystack for marker in storage_markers):
+            continue
+        canonical = candidate.split("#", 1)[0]
+        if canonical in seen:
+            continue
+        seen.add(canonical)
+        results.append(canonical)
+        if len(results) >= MAX_SEARCH_RESULTS_PER_CAPACITY:
+            break
+    return results
 
 
 def _canonical_attributes(title: str) -> dict[str, str]:

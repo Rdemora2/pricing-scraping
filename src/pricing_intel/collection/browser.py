@@ -11,7 +11,7 @@ from scrapy_playwright.page import PageMethod
 
 from pricing_intel.collection.network_policy import Resolver, validate_outbound_url
 
-BROWSER_FALLBACK_ADAPTERS = frozenset({"amazon", "americanas", "carrefour"})
+BROWSER_FALLBACK_ADAPTERS = frozenset({"amazon", "americanas", "carrefour", "kabum"})
 _BLOCKED_RESOURCE_TYPES = frozenset({"font", "image", "media"})
 DECLARED_USER_AGENT = "pricing-intel-lab-bot/0.1 (+local pricing intelligence portfolio project)"
 

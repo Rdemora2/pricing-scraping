@@ -39,6 +39,10 @@ class SourceResponse(BaseModel):
     adapter_name: str
 
 
+class CollectionRequest(BaseModel):
+    product_id: UUID
+
+
 class DiscoverySearchRequest(BaseModel):
     query: str = Field(min_length=3, max_length=160)
 
@@ -217,9 +221,9 @@ class VariantIntelligenceResponse(BaseModel):
     variant_id: UUID
     storage_gb: int
     color: str
-    min_price: str
-    median_price: str
-    max_price: str
+    min_price: str | None
+    median_price: str | None
+    max_price: str | None
     offer_count: int
     retailer_count: int
 
@@ -231,9 +235,9 @@ class VariantIntelligenceResponse(BaseModel):
             variant_id=result.variant_id,
             storage_gb=result.storage_gb,
             color=result.color,
-            min_price=_format_money(result.min_price_minor_units, currency) or "0.00",
-            median_price=_format_money(result.median_price_minor_units, currency) or "0.00",
-            max_price=_format_money(result.max_price_minor_units, currency) or "0.00",
+            min_price=_format_money(result.min_price_minor_units, currency),
+            median_price=_format_money(result.median_price_minor_units, currency),
+            max_price=_format_money(result.max_price_minor_units, currency),
             offer_count=result.offer_count,
             retailer_count=result.retailer_count,
         )
@@ -314,6 +318,7 @@ class ProductIntelligenceResponse(BaseModel):
     most_expensive_color: ColorIntelligenceResponse | None
     storage_analysis: list[StorageIntelligenceResponse]
     color_analysis: list[ColorIntelligenceResponse]
+    variant_analysis: list[VariantIntelligenceResponse]
     methodology: list[str]
     freshness_window_hours: int
     generated_at: datetime
@@ -368,6 +373,10 @@ class ProductIntelligenceResponse(BaseModel):
             color_analysis=[
                 ColorIntelligenceResponse.from_result(item, currency=currency)
                 for item in result.color_analysis
+            ],
+            variant_analysis=[
+                VariantIntelligenceResponse.from_result(item, currency=currency)
+                for item in result.variant_analysis
             ],
             methodology=[
                 "Cada variante compara somente ofertas novas, disponíveis e na mesma moeda.",

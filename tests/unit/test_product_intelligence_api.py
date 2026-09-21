@@ -71,6 +71,7 @@ async def test_product_intelligence_endpoint_returns_explainable_contract(monkey
     assert response.product_id == product.id
     assert response.storages_gb == [256, 512]
     assert response.colors == ["Prateado"]
+    assert [item.offer_count for item in response.variant_analysis] == [1, 1]
     assert response.min_price == "7000.00"
     assert response.freshness_window_hours == 72
     assert response.best_value_storage is None

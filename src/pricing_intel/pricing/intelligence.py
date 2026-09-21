@@ -22,9 +22,9 @@ class VariantIntelligence:
     variant_id: UUID
     storage_gb: int
     color: str
-    min_price_minor_units: int
-    median_price_minor_units: int
-    max_price_minor_units: int
+    min_price_minor_units: int | None
+    median_price_minor_units: int | None
+    max_price_minor_units: int | None
     offer_count: int
     retailer_count: int
 
@@ -75,6 +75,7 @@ class ProductIntelligence:
     most_expensive_color: ColorIntelligence | None
     storage_analysis: tuple[StorageIntelligence, ...]
     color_analysis: tuple[ColorIntelligence, ...]
+    variant_analysis: tuple[VariantIntelligence, ...]
 
 
 def _median(values: list[int]) -> int:
@@ -139,7 +140,7 @@ def analyze_product(
     for snapshot in snapshots:
         snapshots_by_variant[snapshot.variant_id].append(snapshot)
 
-    observed: list[VariantIntelligence] = []
+    variant_analysis: list[VariantIntelligence] = []
     retailer_keys: set[str] = set()
     for variant, storage, color in canonical:
         result = compare_variant(
@@ -148,21 +149,21 @@ def analyze_product(
             reference_currency=reference_currency,
             observed_after=observed_after,
         )
-        if result.median_price_minor_units is None:
-            continue
-        observed.append(
+        variant_analysis.append(
             VariantIntelligence(
                 variant_id=variant.id,
                 storage_gb=storage,
                 color=color,
-                min_price_minor_units=result.min_price_minor_units or 0,
+                min_price_minor_units=result.min_price_minor_units,
                 median_price_minor_units=result.median_price_minor_units,
-                max_price_minor_units=result.max_price_minor_units or 0,
+                max_price_minor_units=result.max_price_minor_units,
                 offer_count=result.included_offer_count,
                 retailer_count=result.retailer_count,
             )
         )
         retailer_keys.update(retailer_identity(item.seller_name) for item in result.included)
+
+    observed = [point for point in variant_analysis if point.median_price_minor_units is not None]
 
     storage_catalog_counts: dict[int, int] = defaultdict(int)
     color_catalog_counts: dict[str, int] = defaultdict(int)
@@ -180,7 +181,15 @@ def analyze_product(
     for storage in sorted(storage_catalog_counts):
         points = observed_by_storage.get(storage, [])
         representative = (
-            _median([point.median_price_minor_units for point in points]) if points else None
+            _median(
+                [
+                    point.median_price_minor_units
+                    for point in points
+                    if point.median_price_minor_units is not None
+                ]
+            )
+            if points
+            else None
         )
         storage_analysis.append(
             StorageIntelligence(
@@ -188,11 +197,23 @@ def analyze_product(
                 catalog_variant_count=storage_catalog_counts[storage],
                 observed_variant_count=len(points),
                 min_price_minor_units=(
-                    min(point.min_price_minor_units for point in points) if points else None
+                    min(
+                        point.min_price_minor_units
+                        for point in points
+                        if point.min_price_minor_units is not None
+                    )
+                    if points
+                    else None
                 ),
                 representative_price_minor_units=representative,
                 max_price_minor_units=(
-                    max(point.max_price_minor_units for point in points) if points else None
+                    max(
+                        point.max_price_minor_units
+                        for point in points
+                        if point.max_price_minor_units is not None
+                    )
+                    if points
+                    else None
                 ),
                 price_per_gb_minor_units=(
                     int(
@@ -207,7 +228,13 @@ def analyze_product(
         )
 
     storage_baselines = {
-        storage: _median([point.median_price_minor_units for point in points])
+        storage: _median(
+            [
+                point.median_price_minor_units
+                for point in points
+                if point.median_price_minor_units is not None
+            ]
+        )
         for storage, points in observed_by_storage.items()
         if len(points) >= 2
     }
@@ -216,6 +243,7 @@ def analyze_product(
         baseline = storage_baselines.get(point.storage_gb)
         if baseline is None:
             continue
+        assert point.median_price_minor_units is not None
         delta = (
             (Decimal(point.median_price_minor_units) - Decimal(baseline))
             / Decimal(baseline)
@@ -234,15 +262,33 @@ def analyze_product(
                 observed_variant_count=len(points),
                 comparable_storage_count=len(deltas),
                 min_price_minor_units=(
-                    min(point.min_price_minor_units for point in points) if points else None
+                    min(
+                        point.min_price_minor_units
+                        for point in points
+                        if point.min_price_minor_units is not None
+                    )
+                    if points
+                    else None
                 ),
                 representative_price_minor_units=(
-                    _median([point.median_price_minor_units for point in points])
+                    _median(
+                        [
+                            point.median_price_minor_units
+                            for point in points
+                            if point.median_price_minor_units is not None
+                        ]
+                    )
                     if points
                     else None
                 ),
                 max_price_minor_units=(
-                    max(point.max_price_minor_units for point in points) if points else None
+                    max(
+                        point.max_price_minor_units
+                        for point in points
+                        if point.max_price_minor_units is not None
+                    )
+                    if points
+                    else None
                 ),
                 relative_price_delta_bps=_mean_rounded(deltas) if deltas else None,
             )
@@ -270,10 +316,22 @@ def analyze_product(
         storages_gb=tuple(sorted(storage_catalog_counts)),
         colors=tuple(sorted(color_catalog_counts)),
         min_price_minor_units=(
-            min(point.min_price_minor_units for point in observed) if observed else None
+            min(
+                point.min_price_minor_units
+                for point in observed
+                if point.min_price_minor_units is not None
+            )
+            if observed
+            else None
         ),
         max_price_minor_units=(
-            max(point.max_price_minor_units for point in observed) if observed else None
+            max(
+                point.max_price_minor_units
+                for point in observed
+                if point.max_price_minor_units is not None
+            )
+            if observed
+            else None
         ),
         cheapest_variant=(
             min(observed, key=lambda item: item.median_price_minor_units) if observed else None
@@ -322,4 +380,5 @@ def analyze_product(
         ),
         storage_analysis=tuple(storage_analysis),
         color_analysis=tuple(color_analysis),
+        variant_analysis=tuple(variant_analysis),
     )
