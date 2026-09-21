@@ -14,6 +14,7 @@ from pricing_intel.collection.spiders.retail import (
     AmazonSpider,
     AmericanasSpider,
     CarrefourSpider,
+    IPlaceSpider,
     KabumSpider,
 )
 
@@ -112,6 +113,7 @@ def test_browser_metadata_is_explicit_and_bounded() -> None:
     }
     assert has_browser_fallback("amazon") is True
     assert has_browser_fallback("kabum") is True
+    assert has_browser_fallback("iplace") is True
     assert has_browser_fallback("fast_shop") is False
 
 
@@ -371,3 +373,100 @@ def test_rendered_amazon_search_follows_exact_model_and_capacity() -> None:
     assert [item.url for item in product_requests] == [
         "https://www.amazon.com.br/Apple-iPhone-Pro-Max-512/dp/B0FQH3X8R8"
     ]
+
+
+def _iplace_spider(product_model: str = "iphone_17_pro") -> IPlaceSpider:
+    spider = IPlaceSpider(
+        source_id="00000000-0000-0000-0000-000000000001",
+        run_id="00000000-0000-0000-0000-000000000002",
+        base_url="https://www.iplace.com.br/",
+        product_name="Apple iPhone 17 Pro",
+        product_model=product_model,
+        storages="256",
+    )
+    spider.browser_resolver = _public_resolver
+    return spider
+
+
+def _iplace_response(status: int = 200, with_jsonld: bool = False) -> TextResponse:
+    request = Request("https://www.iplace.com.br/apple-iphone-17-pro/100411PR")
+    body = '<html><body><div id="root"></div></body></html>'
+    if with_jsonld:
+        # Trimmed to the fields the shared extractor reads; matches the shape
+        # iPlace's rendered page embeds after client-side hydration.
+        body = (
+            '<script type="application/ld+json">'
+            '{"@type":"Product","name":"Apple iPhone 17 Pro 256GB Azul-intenso",'
+            '"sku":"100072467",'
+            '"offers":[{"@type":"Offer","priceCurrency":"BRL","price":8829,'
+            '"availability":"http://schema.org/InStock",'
+            '"itemCondition":"http://schema.org/NewCondition"}]}'
+            "</script>"
+        )
+    return TextResponse(
+        url=request.url, request=request, status=status, body=body.encode(), encoding="utf-8"
+    )
+
+
+async def _first_start_request(spider: IPlaceSpider) -> Request:
+    return await anext(request async for request in spider.start())
+
+
+@pytest.mark.asyncio
+async def test_iplace_resolves_a_verified_model_to_its_product_url() -> None:
+    spider = _iplace_spider("iphone_17_pro_max")
+
+    request = await _first_start_request(spider)
+
+    assert request.url == "https://www.iplace.com.br/apple-iphone-17-pro-max/100544PR"
+    assert request.callback == spider.parse_product
+
+
+@pytest.mark.asyncio
+async def test_iplace_rejects_a_model_with_no_verified_product_page() -> None:
+    # iPlace is an Apple-only reseller (no Android) and, at the time this
+    # mapping was verified, had no iphone_18_pro entry in productSitemap.xml
+    # yet — both are reasons a model can be legitimately unmapped, not a bug.
+    spider = _iplace_spider("galaxy_s26_ultra")
+
+    with pytest.raises(ValueError, match="no verified product page"):
+        await _first_start_request(spider)
+
+
+def test_iplace_extraction_failure_escalates_to_browser() -> None:
+    spider = _iplace_spider()
+
+    fallback = list(spider.parse_product(_iplace_response(with_jsonld=False)))
+
+    assert len(fallback) == 1
+    assert fallback[0].meta["playwright"] is True
+    assert fallback[0].callback == spider.parse_browser_product
+    # Pin the restricted allowlist as a regression-detectable invariant: the
+    # dozens of third-party trackers this page loads in a real browser must
+    # stay unreachable from our fallback.
+    assert fallback[0].meta["browser_allowed_hosts"] == ("www.iplace.com.br",)
+
+
+def test_iplace_http_success_does_not_schedule_browser() -> None:
+    spider = _iplace_spider()
+
+    result = list(spider.parse_product(_iplace_response(with_jsonld=True)))
+
+    assert len(result) == 1
+    assert result[0]["extractor_name"] == "iplace_product_jsonld"
+    assert result[0]["price_amount"] == 8829
+
+
+@pytest.mark.parametrize("status", [401, 403, 429])
+def test_iplace_blocked_status_does_not_escalate_to_browser(status: int) -> None:
+    spider = _iplace_spider()
+
+    assert list(spider.parse_product(_iplace_response(status=status))) == []
+
+
+def test_iplace_browser_evidence_is_explicit_in_extractor_name() -> None:
+    spider = _iplace_spider()
+
+    result = list(spider.parse_browser_product(_iplace_response(with_jsonld=True)))
+
+    assert result[0]["extractor_name"] == "iplace_product_jsonld_browser_fallback"

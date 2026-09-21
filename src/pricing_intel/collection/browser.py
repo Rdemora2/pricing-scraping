@@ -11,7 +11,7 @@ from scrapy_playwright.page import PageMethod
 
 from pricing_intel.collection.network_policy import Resolver, validate_outbound_url
 
-BROWSER_FALLBACK_ADAPTERS = frozenset({"amazon", "americanas", "carrefour", "kabum"})
+BROWSER_FALLBACK_ADAPTERS = frozenset({"amazon", "americanas", "carrefour", "iplace", "kabum"})
 _BLOCKED_RESOURCE_TYPES = frozenset({"font", "image", "media"})
 
 # Chrome/Windows desktop identity. Bump CHROME_MAJOR_VERSION as real Chrome

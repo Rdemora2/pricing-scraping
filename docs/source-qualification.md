@@ -10,7 +10,7 @@ produz observações reais sem autenticação, CAPTCHA ou contorno de política.
 | Amazon Brasil | candidate | Adapter e busca cobertos; execução final recebeu HTTP 503 e produziu zero observações. |
 | Americanas | enabled | Run `1df5115e-f6d4-4ae2-8f28-67cd410a0868`: 6 observações e 6 evidências. |
 | Carrefour | candidate | Run `3e0388a3-1a1f-4839-baad-ce84f104d670`: a busca do iPhone 16 foi recusada três vezes por `robots.txt`; a política atual proíbe `/busca/`. Runs históricos permanecem auditáveis, mas não justificam nova execução. |
-| iPlace | candidate | HTTP 403 no acesso declarado. |
+| iPlace | candidate | Perfil realista de headers (INC-11) removeu o HTTP 403 anterior; a página de produto real agora só materializa `Product` JSON-LD após renderização client-side (plataforma migrou para Oracle Commerce Cloud). Fallback de navegador (já existente, mesmo invariante de Amazon/Carrefour) passa a ser o caminho normal deste adapter, com allowlist restrita a `www.iplace.com.br`. Seis modelos com página verificada em `productSitemap.xml` (16 Plus/Pro/Pro Max, 17 Pro/Pro Max, Air); iPhone 16/17 base e 18 Pro/Pro Max ainda não têm página confirmada nesse sitemap. Aguarda execução real pelo pipeline completo (worker/Postgres) para promoção a `enabled`. |
 | Fast Shop | candidate | Produto estruturado validado, mas `robots.txt` não autoriza a busca automatizada. |
 | Zoom | enabled | Run `c7461e5f-9f78-422b-bde8-e194ff2f6d23`: 25 observações. |
 | Buscapé | enabled | Run `42ba3f21-f4bb-4984-8854-1103ec6aa5fa`: 49 observações. |
@@ -23,13 +23,13 @@ produz observações reais sem autenticação, CAPTCHA ou contorno de política.
 | Samsung Brasil | reference | Referência institucional; a cotação vem da Samsung Shop. |
 | Motorola Brasil | reference | Referência oficial; busca ainda sem oferta exata estável para o catálogo focal. |
 | Mercado Livre | candidate | Integração oficial não credenciada; endpoint público respondeu HTTP 403. |
-| Casas Bahia | candidate | HTTP 403 no acesso declarado. |
-| Ponto | candidate | HTTP 403 no acesso declarado. |
-| Extra | candidate | HTTP 403 no acesso declarado. |
+| Casas Bahia | candidate | Categoria abre (200) com o perfil do INC-11; página de produto individual recusada (403) mesmo com SKU e URL reais. `robots.txt` proíbe `*/pdp-api`. `initialState.price` da própria categoria chega `{"loading": true, "prices": []}` — preço é carregado por cliente atrás de telemetria comportamental Akamai ativa (confirmada em tráfego de rede real). Playwright de produção sem nenhuma modificação recebe 403 imediato ali, com `navigator.webdriver` como sinal; contornar exigiria mascarar essa flag, fora de escopo. Ver `docs/ai/delivery/evidence/INC-12.md`. |
+| Ponto | candidate | Mesma plataforma e mesmo impedimento da Casas Bahia (confirmado com SKU e URL reais próprios). |
+| Extra | candidate | Mesma plataforma e mesmo impedimento da Casas Bahia. |
 | Shopee Brasil | candidate | Falta validar no fluxo público produto novo, seller, garantia e estoque nacional. |
 | AliExpress Brasil | candidate | Falta provar em conjunto envio do Brasil, produto novo, seller e garantia. |
-| Pichau | candidate | HTTP 403 no acesso declarado. |
-| TerabyteShop | candidate | HTTP 403 no acesso declarado. |
+| Pichau | candidate | Tecnicamente acessível com o perfil do INC-11, mas é varejista de hardware/PC gamer — não vende os aparelhos do catálogo. `robots.txt` também proíbe busca por query (`Disallow: /*?*`). |
+| TerabyteShop | candidate | O mais aberto tecnicamente (`robots.txt` permite `/produto/`, `/smartphones/`, regras dedicadas para bots de IA); sitemap de produtos (3957 URLs) não contém iPhone/Galaxy como produto — só acessórios. Varejista de hardware/PC, não vende os aparelhos do catálogo. |
 | Xiaomi Brasil | reference | Referência oficial mapeada para expansão futura do catálogo. |
 | Realme Brasil | reference | Referência oficial mapeada para expansão futura do catálogo. |
 | Claro Loja Online | candidate | Rota de busca não homologada; preço precisa ser separado de plano e fidelização. |
@@ -39,7 +39,7 @@ produz observações reais sem autenticação, CAPTCHA ou contorno de política.
 | Bondfaro | candidate | Adapter validado, mas o `robots.txt` recusou a execução da busca. |
 | Promobit | candidate | Rota pública não homologada; cupom e validade exigem semântica própria. |
 | Pelando | candidate | Rota pública não homologada; cupom e validade exigem semântica própria. |
-| Magalu | candidate | HTTP 403 no acesso declarado. |
+| Magalu | candidate | Raiz abre (200); URL real de busca por produto (obtida navegando o site) recusada com HTTP 403 — página de erro com a marca "akamai-bot" própria da Magalu. Não é chute de URL errado: confirmado com URL real. |
 
 Fontes candidatas continuam visíveis para governança, mas não oferecem botão de
 coleta. Mudança de estado exige novo run completo e evidência persistida; uma
