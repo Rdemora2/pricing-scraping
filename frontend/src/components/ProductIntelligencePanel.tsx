@@ -6,6 +6,12 @@ type ProductIntelligencePanelProps = {
   intelligence: ProductIntelligence | null;
 };
 
+function formatPriceDelta(value: string): string {
+  const numeric = Number(value);
+  const direction = numeric < 0 ? "a menos" : "a mais";
+  return `${formatMoney(String(Math.abs(numeric)))} ${direction}`;
+}
+
 export function ProductIntelligencePanel({ product, intelligence }: ProductIntelligencePanelProps) {
   if (!product || !intelligence) return null;
 
@@ -15,6 +21,10 @@ export function ProductIntelligencePanel({ product, intelligence }: ProductIntel
     developing: "Cobertura em formação",
     strong: "Amostra robusta",
   }[intelligence.sample_status];
+  const entryStep = intelligence.entry_storage_step;
+  const storageSteps = new Map(
+    intelligence.storage_steps.map((step) => [step.to_storage_gb, step]),
+  );
 
   return (
     <section className="model-intelligence" aria-labelledby="model-intelligence-title">
@@ -49,16 +59,16 @@ export function ProductIntelligencePanel({ product, intelligence }: ProductIntel
 
       <div className="intelligence-cards">
         <article className="intelligence-card intelligence-card-signal">
-          <span>Melhor custo por capacidade</span>
+          <span>Primeiro salto de capacidade</span>
           <strong>
-            {intelligence.best_value_storage
-              ? formatStorage(intelligence.best_value_storage.storage_gb)
+            {entryStep
+              ? `${formatStorage(entryStep.from_storage_gb)} → ${formatStorage(entryStep.to_storage_gb)}`
               : "Em formação"}
           </strong>
           <p>
-            {intelligence.best_value_storage?.price_per_gb
-              ? `${formatMoney(intelligence.best_value_storage.price_per_gb)} por GB`
-              : "Ainda faltam capacidades comparáveis."}
+            {entryStep
+              ? `${formatPriceDelta(entryStep.price_delta)} por +${formatStorage(entryStep.added_storage_gb)} (${formatDelta(entryStep.price_delta_pct)} no preço mediano)`
+              : "Ainda faltam capacidades e cores comparáveis."}
           </p>
         </article>
         <article className="intelligence-card">
@@ -92,21 +102,28 @@ export function ProductIntelligencePanel({ product, intelligence }: ProductIntel
               <span>mediana entre cores</span>
             </div>
             <div className="dimension-list">
-              {intelligence.storage_analysis.map((item) => (
-                <article key={item.storage_gb}>
-                  <strong>{formatStorage(item.storage_gb)}</strong>
-                  <div>
-                    <span>Preço representativo</span>
-                    <b>{formatMoney(item.representative_price)}</b>
-                  </div>
-                  <div>
-                    <span>Cores observadas</span>
-                    <b>
-                      {item.observed_variant_count}/{item.catalog_variant_count}
-                    </b>
-                  </div>
-                </article>
-              ))}
+              {intelligence.storage_analysis.map((item, index) => {
+                const step = storageSteps.get(item.storage_gb);
+                return (
+                  <article key={item.storage_gb}>
+                    <strong>{formatStorage(item.storage_gb)}</strong>
+                    <div>
+                      <span>Preço representativo</span>
+                      <b>{formatMoney(item.representative_price)}</b>
+                    </div>
+                    <div>
+                      <span>Diferença para a anterior</span>
+                      <b>
+                        {step
+                          ? `${formatPriceDelta(step.price_delta)} · +${formatStorage(step.added_storage_gb)} · ${formatDelta(step.price_delta_pct)}`
+                          : index === 0
+                            ? "Base da escada"
+                            : "Amostra insuficiente"}
+                      </b>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           </section>
           <section>

@@ -31,7 +31,12 @@ async def test_product_intelligence_endpoint_returns_explainable_contract(monkey
             attributes_signature=f"{storage}:{color}",
             gtin=None,
         )
-        for storage, color in (("256", "Prateado"), ("512", "Prateado"))
+        for storage, color in (
+            ("256", "Prateado"),
+            ("256", "Preto"),
+            ("512", "Prateado"),
+            ("512", "Preto"),
+        )
     ]
     snapshots = [
         ProductVariantOfferSnapshot(
@@ -49,7 +54,7 @@ async def test_product_intelligence_endpoint_returns_explainable_contract(monkey
             shipping=ShippingTerms(known=False),
         )
         for index, (item, price) in enumerate(
-            zip(variants, (700_000, 850_000), strict=True), start=1
+            zip(variants, (700_000, 720_000, 850_000, 880_000), strict=True), start=1
         )
     ]
 
@@ -70,13 +75,18 @@ async def test_product_intelligence_endpoint_returns_explainable_contract(monkey
 
     assert response.product_id == product.id
     assert response.storages_gb == [256, 512]
-    assert response.colors == ["Prateado"]
-    assert [item.offer_count for item in response.variant_analysis] == [1, 1]
+    assert response.colors == ["Prateado", "Preto"]
+    assert [item.offer_count for item in response.variant_analysis] == [1, 1, 1, 1]
     assert response.min_price == "7000.00"
     assert response.freshness_window_hours == 72
-    assert response.best_value_storage is None
+    assert response.entry_storage_step is not None
+    assert response.entry_storage_step.from_storage_gb == 256
+    assert response.entry_storage_step.to_storage_gb == 512
+    assert response.entry_storage_step.price_delta == "1550.00"
+    assert response.entry_storage_step.price_delta_pct == "21.83"
+    assert len(response.storage_steps) == 1
     assert response.methodology[-1] == (
-        "Melhor custo-benefício exige duas cores por capacidade, duas capacidades e três varejistas."
+        "Saltos de capacidade exigem duas cores por capacidade e três varejistas entre as duas capacidades."
     )
 
 

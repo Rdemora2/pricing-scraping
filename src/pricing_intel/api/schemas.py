@@ -20,6 +20,7 @@ from pricing_intel.pricing.intelligence import (
     ColorIntelligence,
     ProductIntelligence,
     StorageIntelligence,
+    StorageStepIntelligence,
     VariantIntelligence,
 )
 
@@ -250,7 +251,6 @@ class StorageIntelligenceResponse(BaseModel):
     min_price: str | None
     representative_price: str | None
     max_price: str | None
-    price_per_gb: str | None
 
     @classmethod
     def from_result(
@@ -263,7 +263,36 @@ class StorageIntelligenceResponse(BaseModel):
             min_price=_format_money(result.min_price_minor_units, currency),
             representative_price=_format_money(result.representative_price_minor_units, currency),
             max_price=_format_money(result.max_price_minor_units, currency),
-            price_per_gb=_format_money(result.price_per_gb_minor_units, currency),
+        )
+
+
+class StorageStepIntelligenceResponse(BaseModel):
+    from_storage_gb: int
+    to_storage_gb: int
+    added_storage_gb: int
+    from_price: str
+    to_price: str
+    price_delta: str
+    price_delta_pct: str
+
+    @classmethod
+    def from_result(
+        cls, result: StorageStepIntelligence, *, currency: str
+    ) -> StorageStepIntelligenceResponse:
+        from_price = _format_money(result.from_price_minor_units, currency)
+        to_price = _format_money(result.to_price_minor_units, currency)
+        price_delta = _format_money(result.price_delta_minor_units, currency)
+        assert from_price is not None and to_price is not None and price_delta is not None
+        return cls(
+            from_storage_gb=result.from_storage_gb,
+            to_storage_gb=result.to_storage_gb,
+            added_storage_gb=result.added_storage_gb,
+            from_price=from_price,
+            to_price=to_price,
+            price_delta=price_delta,
+            price_delta_pct=str(
+                (Decimal(result.price_delta_bps) / Decimal(100)).quantize(Decimal("0.01"))
+            ),
         )
 
 
@@ -311,11 +340,12 @@ class ProductIntelligenceResponse(BaseModel):
     max_price: str | None
     cheapest_variant: VariantIntelligenceResponse | None
     most_expensive_variant: VariantIntelligenceResponse | None
-    best_value_storage: StorageIntelligenceResponse | None
+    entry_storage_step: StorageStepIntelligenceResponse | None
     cheapest_storage: StorageIntelligenceResponse | None
     most_expensive_storage: StorageIntelligenceResponse | None
     cheapest_color: ColorIntelligenceResponse | None
     most_expensive_color: ColorIntelligenceResponse | None
+    storage_steps: list[StorageStepIntelligenceResponse]
     storage_analysis: list[StorageIntelligenceResponse]
     color_analysis: list[ColorIntelligenceResponse]
     variant_analysis: list[VariantIntelligenceResponse]
@@ -361,11 +391,21 @@ class ProductIntelligenceResponse(BaseModel):
             max_price=_format_money(result.max_price_minor_units, currency),
             cheapest_variant=variant(result.cheapest_variant),
             most_expensive_variant=variant(result.most_expensive_variant),
-            best_value_storage=storage(result.best_value_storage),
+            entry_storage_step=(
+                StorageStepIntelligenceResponse.from_result(
+                    result.entry_storage_step, currency=currency
+                )
+                if result.entry_storage_step
+                else None
+            ),
             cheapest_storage=storage(result.cheapest_storage),
             most_expensive_storage=storage(result.most_expensive_storage),
             cheapest_color=color(result.cheapest_color),
             most_expensive_color=color(result.most_expensive_color),
+            storage_steps=[
+                StorageStepIntelligenceResponse.from_result(item, currency=currency)
+                for item in result.storage_steps
+            ],
             storage_analysis=[
                 StorageIntelligenceResponse.from_result(item, currency=currency)
                 for item in result.storage_analysis
@@ -383,7 +423,7 @@ class ProductIntelligenceResponse(BaseModel):
                 f"Amostra atual considera observações das últimas {freshness_window_hours} horas.",
                 "O preço representativo é a mediana das variantes observadas em cada grupo.",
                 "O índice de cor mede o desvio contra a mediana das cores da mesma capacidade.",
-                "Melhor custo-benefício exige duas cores por capacidade, duas capacidades e três varejistas.",
+                "Saltos de capacidade exigem duas cores por capacidade e três varejistas entre as duas capacidades.",
             ],
             freshness_window_hours=freshness_window_hours,
             generated_at=generated_at,

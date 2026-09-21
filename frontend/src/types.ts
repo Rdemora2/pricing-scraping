@@ -129,7 +129,16 @@ export type StorageIntelligence = {
   min_price: string | null;
   representative_price: string | null;
   max_price: string | null;
-  price_per_gb: string | null;
+};
+
+export type StorageStepIntelligence = {
+  from_storage_gb: number;
+  to_storage_gb: number;
+  added_storage_gb: number;
+  from_price: string;
+  to_price: string;
+  price_delta: string;
+  price_delta_pct: string;
 };
 
 export type ColorIntelligence = {
@@ -158,11 +167,12 @@ export type ProductIntelligence = {
   max_price: string | null;
   cheapest_variant: VariantIntelligence | null;
   most_expensive_variant: VariantIntelligence | null;
-  best_value_storage: StorageIntelligence | null;
+  entry_storage_step: StorageStepIntelligence | null;
   cheapest_storage: StorageIntelligence | null;
   most_expensive_storage: StorageIntelligence | null;
   cheapest_color: ColorIntelligence | null;
   most_expensive_color: ColorIntelligence | null;
+  storage_steps: StorageStepIntelligence[];
   storage_analysis: StorageIntelligence[];
   color_analysis: ColorIntelligence[];
   variant_analysis: VariantIntelligence[];

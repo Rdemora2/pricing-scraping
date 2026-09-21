@@ -43,7 +43,7 @@ def snapshot(
     )
 
 
-def test_analyzes_storage_value_and_normalized_color_premium() -> None:
+def test_analyzes_storage_steps_and_normalized_color_premium() -> None:
     product_id = uuid4()
     variants = [
         variant(256, "Preto"),
@@ -73,8 +73,16 @@ def test_analyzes_storage_value_and_normalized_color_premium() -> None:
     assert all(item.offer_count > 0 for item in result.variant_analysis)
     assert result.min_price_minor_units == 600_000
     assert result.max_price_minor_units == 980_000
-    assert result.best_value_storage is not None
-    assert result.best_value_storage.storage_gb == 1024
+    assert result.entry_storage_step is not None
+    assert result.entry_storage_step.from_storage_gb == 256
+    assert result.entry_storage_step.to_storage_gb == 512
+    assert result.entry_storage_step.added_storage_gb == 256
+    assert result.entry_storage_step.price_delta_minor_units == 110_000
+    assert result.entry_storage_step.price_delta_bps == 1803
+    assert [
+        (step.from_storage_gb, step.to_storage_gb, step.price_delta_minor_units)
+        for step in result.storage_steps
+    ] == [(256, 512, 110_000), (512, 1024, 220_000)]
     assert result.cheapest_storage is not None
     assert result.cheapest_storage.storage_gb == 256
     assert result.most_expensive_storage is not None
@@ -100,14 +108,15 @@ def test_no_market_data_keeps_catalog_visible_without_inventing_insights() -> No
     assert result.coverage_pct == 0
     assert result.sample_status == "no_data"
     assert result.min_price_minor_units is None
-    assert result.best_value_storage is None
+    assert result.entry_storage_step is None
+    assert result.storage_steps == ()
     assert result.cheapest_color is None
     assert [item.observed_variant_count for item in result.storage_analysis] == [0, 0]
     assert [item.offer_count for item in result.variant_analysis] == [0, 0]
     assert all(item.median_price_minor_units is None for item in result.variant_analysis)
 
 
-def test_single_storage_does_not_claim_best_value() -> None:
+def test_single_storage_does_not_claim_an_upgrade_step() -> None:
     product_id = uuid4()
     black = variant(256, "Preto")
     white = variant(256, "Branco")
@@ -118,9 +127,38 @@ def test_single_storage_does_not_claim_best_value() -> None:
         [snapshot(black, 600_000, seller="Loja A"), snapshot(white, 620_000, seller="Loja B")],
     )
 
-    assert result.best_value_storage is None
+    assert result.entry_storage_step is None
+    assert result.storage_steps == ()
     assert result.cheapest_storage is not None
     assert result.cheapest_color is None
+
+
+def test_storage_step_requires_retailer_diversity_in_the_adjacent_pair() -> None:
+    product_id = uuid4()
+    variants = [
+        variant(256, "Preto"),
+        variant(256, "Branco"),
+        variant(512, "Preto"),
+        variant(512, "Branco"),
+        variant(1024, "Preto"),
+        variant(1024, "Branco"),
+    ]
+    snapshots = [
+        snapshot(variants[0], 600_000, seller="Loja A"),
+        snapshot(variants[1], 620_000, seller="Loja A"),
+        snapshot(variants[2], 700_000, seller="Loja A"),
+        snapshot(variants[3], 720_000, seller="Loja A"),
+        snapshot(variants[4], 900_000, seller="Loja B"),
+        snapshot(variants[5], 920_000, seller="Loja C"),
+    ]
+
+    result = analyze_product(product_id, variants, snapshots)
+
+    assert result.retailer_count == 3
+    assert [(step.from_storage_gb, step.to_storage_gb) for step in result.storage_steps] == [
+        (512, 1024)
+    ]
+    assert result.entry_storage_step == result.storage_steps[0]
 
 
 def test_ignores_variants_without_required_dimensions() -> None:

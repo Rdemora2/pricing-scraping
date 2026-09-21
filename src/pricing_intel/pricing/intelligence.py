@@ -11,6 +11,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
+from itertools import pairwise
 from uuid import UUID
 
 from pricing_intel.domain.models import ProductVariantOfferSnapshot, Variant
@@ -37,7 +38,17 @@ class StorageIntelligence:
     min_price_minor_units: int | None
     representative_price_minor_units: int | None
     max_price_minor_units: int | None
-    price_per_gb_minor_units: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class StorageStepIntelligence:
+    from_storage_gb: int
+    to_storage_gb: int
+    added_storage_gb: int
+    from_price_minor_units: int
+    to_price_minor_units: int
+    price_delta_minor_units: int
+    price_delta_bps: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,11 +79,12 @@ class ProductIntelligence:
     max_price_minor_units: int | None
     cheapest_variant: VariantIntelligence | None
     most_expensive_variant: VariantIntelligence | None
-    best_value_storage: StorageIntelligence | None
+    entry_storage_step: StorageStepIntelligence | None
     cheapest_storage: StorageIntelligence | None
     most_expensive_storage: StorageIntelligence | None
     cheapest_color: ColorIntelligence | None
     most_expensive_color: ColorIntelligence | None
+    storage_steps: tuple[StorageStepIntelligence, ...]
     storage_analysis: tuple[StorageIntelligence, ...]
     color_analysis: tuple[ColorIntelligence, ...]
     variant_analysis: tuple[VariantIntelligence, ...]
@@ -142,6 +154,7 @@ def analyze_product(
 
     variant_analysis: list[VariantIntelligence] = []
     retailer_keys: set[str] = set()
+    retailer_keys_by_storage: dict[int, set[str]] = defaultdict(set)
     for variant, storage, color in canonical:
         result = compare_variant(
             variant.id,
@@ -161,7 +174,9 @@ def analyze_product(
                 retailer_count=result.retailer_count,
             )
         )
-        retailer_keys.update(retailer_identity(item.seller_name) for item in result.included)
+        variant_retailer_keys = {retailer_identity(item.seller_name) for item in result.included}
+        retailer_keys.update(variant_retailer_keys)
+        retailer_keys_by_storage[storage].update(variant_retailer_keys)
 
     observed = [point for point in variant_analysis if point.median_price_minor_units is not None]
 
@@ -213,15 +228,6 @@ def analyze_product(
                         if point.max_price_minor_units is not None
                     )
                     if points
-                    else None
-                ),
-                price_per_gb_minor_units=(
-                    int(
-                        (Decimal(representative) / Decimal(storage)).quantize(
-                            Decimal("1"), rounding=ROUND_HALF_UP
-                        )
-                    )
-                    if representative is not None
                     else None
                 ),
             )
@@ -297,10 +303,46 @@ def analyze_product(
     priced_storages = [
         item for item in storage_analysis if item.representative_price_minor_units is not None
     ]
-    value_storages = [item for item in priced_storages if item.observed_variant_count >= 2]
     indexed_colors = [item for item in color_analysis if item.comparable_storage_count >= 2]
     catalog_count = len(canonical)
     observed_count = len(observed)
+    storage_steps: list[StorageStepIntelligence] = []
+    for previous, current in pairwise(storage_analysis):
+        step_retailers = retailer_keys_by_storage[previous.storage_gb].union(
+            retailer_keys_by_storage[current.storage_gb]
+        )
+        if (
+            previous.observed_variant_count < 2
+            or current.observed_variant_count < 2
+            or len(step_retailers) < 3
+        ):
+            continue
+        if (
+            previous.representative_price_minor_units is None
+            or current.representative_price_minor_units is None
+        ):
+            continue
+        price_delta = (
+            current.representative_price_minor_units - previous.representative_price_minor_units
+        )
+        price_delta_bps = int(
+            (
+                Decimal(price_delta)
+                / Decimal(previous.representative_price_minor_units)
+                * Decimal(10_000)
+            ).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        )
+        storage_steps.append(
+            StorageStepIntelligence(
+                from_storage_gb=previous.storage_gb,
+                to_storage_gb=current.storage_gb,
+                added_storage_gb=current.storage_gb - previous.storage_gb,
+                from_price_minor_units=previous.representative_price_minor_units,
+                to_price_minor_units=current.representative_price_minor_units,
+                price_delta_minor_units=price_delta,
+                price_delta_bps=price_delta_bps,
+            )
+        )
 
     return ProductIntelligence(
         product_id=product_id,
@@ -339,18 +381,7 @@ def analyze_product(
         most_expensive_variant=(
             max(observed, key=lambda item: item.median_price_minor_units) if observed else None
         ),
-        best_value_storage=(
-            min(
-                value_storages,
-                key=lambda item: (
-                    item.price_per_gb_minor_units
-                    if item.price_per_gb_minor_units is not None
-                    else 2**63
-                ),
-            )
-            if len(value_storages) >= 2 and len(retailer_keys) >= 3
-            else None
-        ),
+        entry_storage_step=storage_steps[0] if storage_steps else None,
         cheapest_storage=(
             min(
                 priced_storages,
@@ -378,6 +409,7 @@ def analyze_product(
             if len(indexed_colors) >= 2
             else None
         ),
+        storage_steps=tuple(storage_steps),
         storage_analysis=tuple(storage_analysis),
         color_analysis=tuple(color_analysis),
         variant_analysis=tuple(variant_analysis),
