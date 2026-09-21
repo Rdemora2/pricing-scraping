@@ -102,3 +102,13 @@ Produto focal: `Apple iPhone 17 Pro Max`.
 - Rollback de código: reverter o incremento. O seed torna fontes legadas
   desabilitadas sem apagar o histórico existente; não é necessário remover o
   volume PostgreSQL.
+
+## Entrega remota
+
+- Commits: `e9e2550`, `2e86cf4` e `76ff9de`.
+- Pull Request draft: [#9](https://github.com/Rdemora2/pricing-scraping/pull/9),
+  empilhado sobre `feature/inc-08-quality-hardening`.
+- Checks observados no primeiro head: `governance` e `GitGuardian Security
+  Checks` aprovados.
+- Merge não executado: a revisão independente permanece como gate explícito e a
+  base empilhada ainda está em PR draft.
