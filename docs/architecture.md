@@ -30,7 +30,7 @@ RabbitMQ e serviços cloud não são necessários no volume do MVP.
   texto não confiável;
 - `pricing`: filtra a população comparável e calcula estatísticas descritivas;
 - `pricing/intelligence`: agrega comparações exatas em indicadores explicáveis de
-  armazenamento, cor, cobertura e custo por GB;
+  armazenamento, cor, cobertura e diferença entre capacidades adjacentes;
 - `frontend`: representa estados reais da API, sem dados decorativos.
 
 ## Fluxo de dados
@@ -48,9 +48,10 @@ RabbitMQ e serviços cloud não são necessários no volume do MVP.
 6. A coleta das páginas descobertas prioriza JSON-LD e usa seletores DOM
    específicos para campos ausentes. A busca da KaBuM! pode repetir a descoberta
    em Chromium headless quando a resposta permitida depende de JavaScript;
-   Americanas e Carrefour preservam o fallback de página já implementado. O
+   Americanas preserva o fallback de página já implementado. O
    adapter Amazon permanece disponível, mas não é executável enquanto a
-   homologação pública responder HTTP 503. A evidência identifica o extrator.
+   homologação pública responder HTTP 503. Carrefour permanece candidato porque
+   a política pública atual proíbe a rota `/busca/`. A evidência identifica o extrator.
 7. O extrator separa vendedor, oferta, termos e variante; marketplaces preservam
    o vendedor efetivo.
 8. A observação e sua evidência são persistidas; replay do mesmo run não duplica
@@ -80,10 +81,13 @@ Nenhum candidato é promovido automaticamente a `source`.
 
 ## Estratégia de fontes
 
-- **coletor homologado**: Zoom, Buscapé, KaBuM!, Americanas e Carrefour são
+- **coletor homologado**: Zoom, Buscapé, KaBuM! e Americanas são
   registrados uma vez pela raiz e pesquisam o aparelho selecionado. Samsung
   Shop resolve a rota pública a partir do modelo canônico. A URL de produto
   descoberta é evidência efêmera da execução, não uma nova fonte;
+- **adapter candidato**: Carrefour mantém extração de páginas de produto e
+  histórico auditável, mas não oferece execução enquanto o `robots.txt` proibir
+  a rota de busca necessária à descoberta por aparelho;
 - **direta**: a KaBuM! fornece a página que sustenta o preço e tem precedência na
   deduplicação. Em marketplaces, canal e vendedor efetivo permanecem identidades
   separadas;

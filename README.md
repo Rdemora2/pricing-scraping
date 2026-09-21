@@ -9,37 +9,100 @@ histórico, evidências, matching determinístico e regras explícitas de
 comparabilidade. O fluxo principal não exige cloud; a descoberta ampla na web é
 opcional e usa uma chave de provedor configurada somente no backend.
 
-## Demonstração rápida
+## Início rápido com Docker
 
-Requisitos: Docker com Compose v2 e aproximadamente 2 GB livres de memória.
+O caminho recomendado não exige Python, Node.js nem PostgreSQL instalados no
+host. Todos os serviços, migrações, seed e o Chromium do coletor ficam nos
+containers.
 
-Crie a configuração local e troque o placeholder de senha antes da primeira
-execução:
+### Requisitos por sistema operacional
+
+| Sistema | Requisito | Observação |
+| --- | --- | --- |
+| macOS | Docker Desktop 4+ com Compose v2 | Apple Silicon e Intel são suportados pelas imagens base multiarch. |
+| Windows 10/11 | Docker Desktop 4+ usando o backend WSL 2 | Execute os comandos no PowerShell ou em uma distribuição WSL 2; mantenha o repositório no filesystem do WSL para melhor desempenho. |
+| Linux | Docker Engine 24+ e plugin Docker Compose v2 | O usuário precisa acessar o daemon Docker; não use `sudo` se sua instalação já estiver configurada para o grupo `docker`. |
+
+Reserve ao menos 4 GB de memória para o Docker e cerca de 5 GB de disco para
+imagens, cache de build e banco local. Git é necessário apenas para clonar o
+repositório.
+
+### 1. Configure o ambiente
+
+No macOS, Linux ou WSL:
 
 ```bash
 cp .env.example .env
 ```
 
-```bash
-docker compose up --build
+No PowerShell:
+
+```powershell
+Copy-Item .env.example .env
 ```
 
-Acesse:
+Edite `.env` e substitua o placeholder de `POSTGRES_PASSWORD` por uma senha
+exclusivamente local. O arquivo é ignorado pelo Git e nunca deve receber uma
+credencial real ou de produção.
+
+### 2. Suba a plataforma
+
+```bash
+docker compose up --build -d
+docker compose ps
+```
+
+Na primeira execução, o Compose constrói as imagens, aplica o schema, cria a fila
+persistida e popula o catálogo idempotentemente. Aguarde os serviços `api`,
+`frontend`, `postgres` e lojas de laboratório ficarem `healthy`; o `migrate`
+termina com estado `Exited (0)` por ser um job one-shot.
+
+### 3. Acesse e valide
 
 - frontend: <http://localhost:3000>;
 - API e OpenAPI: <http://localhost:8000/docs>;
 - healthcheck: <http://localhost:8000/health>.
 
+Checks rápidos, iguais em macOS, Windows e Linux:
+
+```bash
+docker compose ps
+docker compose logs --tail=100 api worker
+docker compose --profile test run --rm test pytest tests/integration
+```
+
 Na interface, entre em **Inteligência de mercado**, escolha aparelho, capacidade
 e cor e use **Atualizar mercado**. A API cria uma execução por fonte aplicável; o
 worker pesquisa o aparelho dentro de cada fonte, descobre páginas compatíveis e
 o painel atualiza varejistas distintos, canais de evidência, faixa de preço e
-exclusões justificadas. A leitura executiva
-do aparelho consolida as variantes e compara armazenamentos, custo por GB e o
-efeito relativo das cores sem misturar capacidades diferentes.
+exclusões justificadas. Durante a execução, a interface acompanha o progresso
+por fonte e preserva resultados parciais quando uma delas não encontra ofertas.
+A leitura executiva do aparelho consolida as variantes, mostra a escada de preço
+entre capacidades adjacentes e mede o efeito relativo das cores sem misturar
+configurações diferentes.
 
 As portas publicadas ficam presas a `127.0.0.1`. PostgreSQL e lojas sintéticas não
 são expostos no host.
+
+## Solução de problemas local
+
+- **`POSTGRES_PASSWORD_required`**: confirme que `.env` existe na raiz e contém
+  `POSTGRES_PASSWORD` sem o placeholder original.
+- **porta 3000 ou 8000 ocupada**: altere `FRONTEND_PORT` ou `API_PORT` em `.env`
+  e recrie os serviços com `docker compose up -d`.
+- **frontend abriu antes do backend**: consulte `docker compose ps`; o frontend
+  só inicia depois do healthcheck da API. Use `docker compose logs api migrate`
+  para identificar a causa.
+- **worker consome muita memória**: confirme que o Docker possui ao menos 4 GB
+  disponíveis. O Chromium existe somente no worker e é iniciado sob demanda.
+- **mudança de código não apareceu**: execute `docker compose up --build -d` para
+  reconstruir e recriar as imagens.
+- **Windows lento em `/mnt/c`**: clone o projeto dentro do filesystem da
+  distribuição WSL 2 e execute o Compose a partir dali.
+
+Não use `docker compose down --volumes` como tentativa genérica de correção: ele
+apaga todo o histórico local. A seção de rollback explica quando esse reset é
+apropriado.
 
 ## Serviços
 
@@ -83,6 +146,12 @@ browser; ele só é elegível após uma resposta HTTP permitida cuja evidência 
 seja insuficiente.
 
 ## Comandos de desenvolvimento
+
+O fluxo abaixo é opcional e destinado a quem deseja executar ferramentas fora
+dos containers. Use Python 3.14, `uv` 0.12+, Node.js 26 e npm compatível com o
+`package-lock.json`; PostgreSQL 17 pode continuar no Compose. No Windows, prefira
+esse fluxo dentro do WSL 2. Não atualize versões ou lockfiles apenas para iniciar
+o projeto.
 
 Backend:
 
@@ -152,13 +221,13 @@ oficial versionada no código: linha iPhone 16, iPhone 17, iPhone Air e iPhone 1
 Pro; Galaxy S25 e S26; e Motorola Edge 70 Pro. O laboratório adiciona somente
 três variantes Nimbus isoladas. O cadastro amplo não é apresentado como cobertura
 de preço. O seed possui 33 definições de fonte: Zoom, Buscapé, KaBuM!,
-Americanas, Carrefour e Samsung Shop estão habilitadas como coletores de
+Americanas e Samsung Shop estão habilitadas como coletores de
 mercado; duas lojas sintéticas ficam isoladas no laboratório; as demais raízes
 são candidatas ou referências até que seu fluxo completo seja homologado.
 
 O coletor é configurado pela identidade e raiz da fonte, nunca por uma URL de
-produto. Ao receber o aparelho canônico, Zoom, Buscapé, KaBuM!, Americanas e
-Carrefour geram buscas por capacidade, filtram modelo/capacidade exatos e seguem
+produto. Ao receber o aparelho canônico, Zoom, Buscapé, KaBuM! e Americanas
+geram buscas por capacidade, filtram modelo/capacidade exatos e seguem
 um conjunto limitado de páginas descobertas. A Samsung Shop deriva a rota
 oficial a partir do modelo canônico e extrai o grupo público de variantes. A URL
 de produto passa a ser evidência da execução, não configuração permanente.
@@ -180,7 +249,7 @@ site direto e em comparador conta uma vez; aliases conhecidos, como Magalu e
 Magazine Luiza, também são consolidados. Em uma execução local de referência em
 `2026-09-21`, as buscas de raiz de Zoom, Buscapé e KaBuM! produziram,
 respectivamente, `25`, `49` e `11` observações brutas para o iPhone 17 Pro Max;
-Americanas e Carrefour acrescentaram runs homologados com `6` e `3`
+Americanas e Carrefour acrescentaram runs históricos com `6` e `3`
 observações. Após matching e deduplicação, a inteligência registrou `54` ofertas de `17`
 varejistas e cobertura `12/12`: as três cores canônicas de `256 GB`, `512 GB`,
 `1 TB` e `2 TB` passaram a ter evidência. A diversidade por configuração exata
@@ -191,10 +260,12 @@ como universalmente atingida.
 
 A central parte das comparações exatas de cada variante e só depois agrega o
 modelo. O preço representativo de um armazenamento é a mediana das variantes de
-cor observadas; o custo-benefício é o menor preço representativo por GB. Ele só é
-declarado com duas cores por capacidade, duas capacidades elegíveis e três
-varejistas. O índice de cor compara cada cor com a mediana das cores do mesmo
-armazenamento e consolida os desvios percentuais. A resposta informa cobertura do catálogo,
+cor observadas. Em vez de declarar a maior capacidade como melhor compra por
+diluição de custo por GB, a escada informa quanto o preço mediano sobe, em reais
+e em percentual, entre capacidades adjacentes. Cada salto exige duas cores
+observadas em cada ponta e três varejistas entre as duas capacidades. O índice de cor compara
+cada cor com a mediana das cores do mesmo armazenamento e consolida os desvios
+percentuais. A resposta informa cobertura do catálogo,
 tamanho da amostra e metodologia. Quando faltam duas capacidades ou combinações
 equivalentes de cor, a recomendação correspondente permanece explicitamente em
 formação. Por padrão, somente observações das últimas 72 horas influenciam a visão
@@ -245,7 +316,9 @@ preservar histórico de coletas.
 - Amazon permanece candidata: o adapter de busca está coberto por testes, mas a
   execução completa recebeu HTTP 503 e não produziu evidência. Bondfaro foi
   rebaixado porque o `robots.txt` recusou a busca; Fast Shop também não autoriza
-  sua busca automatizada;
+  sua busca automatizada. Carrefour também voltou a candidato em `2026-09-21`:
+  páginas de produto continuam públicas, mas o `robots.txt` atual proíbe
+  `/busca/`, rota necessária ao coletor orientado pelo aparelho;
 - candidatos da busca ampla exigem revisão humana e adaptador dedicado antes de
   qualquer coleta;
 - requests HTTP declaram o coletor e negociam HTML em português com cabeçalhos

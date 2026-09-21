@@ -76,8 +76,9 @@ Entregue:
 Próximos passos:
 
 - revalidar Amazon quando deixar de responder HTTP 503 e homologar as demais
-  raízes permitidas; Americanas, Carrefour e Samsung Shop já fecharam o fluxo
-  completo sem reintroduzir URLs fixas de produto;
+  raízes permitidas; Americanas e Samsung Shop já fecharam o fluxo completo sem
+  reintroduzir URLs fixas de produto. Carrefour voltou a candidato porque sua
+  política atual proíbe a rota `/busca/`;
 - elevar de 3–11 para pelo menos 6–8 varejistas cada configuração prioritária,
   sem duplicar aliases ou misturar variantes;
 - evoluir a observação para duas cotações monetárias explícitas — à vista/Pix e
@@ -108,9 +109,11 @@ Entregue localmente:
 O `INC-09` ampliou a normalização para o catálogo completo, mas revelou uma
 limitação estrutural: cada fonte ainda era cadastrada como página de produto. O
 `INC-10` substitui esse vínculo por coletores de raiz. A API passa o aparelho
-selecionado ao worker; Zoom, Buscapé, KaBuM!, Americanas e Carrefour pesquisam
+selecionado ao worker; Zoom, Buscapé, KaBuM! e Americanas pesquisam
 cada capacidade dentro da própria fonte, enquanto Samsung Shop resolve o modelo
-canônico no catálogo oficial. As páginas encontradas viram evidência da execução.
+canônico no catálogo oficial. Carrefour mantém o adapter pronto, mas sem
+execução enquanto a descoberta por busca estiver proibida. As páginas encontradas
+viram evidência da execução.
 
 No frontend, a antiga grade plana de combinações dá lugar a duas etapas —
 armazenamento e cor — com cobertura e amostra visíveis antes da comparação. A

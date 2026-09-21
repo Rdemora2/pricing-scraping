@@ -31,6 +31,17 @@
 - A tela principal mostra primeiro armazenamento e depois cor, com contagem de
   ofertas, mediana e estado vazio. A comparação da configuração vem antes da
   visão consolidada do aparelho.
+- A recomendação por custo/GB foi substituída por saltos adjacentes de
+  capacidade, com diferença absoluta e percentual de preço. A interface separa
+  o preço típico do armazenamento da mediana da cor selecionada.
+- A atualização do mercado acompanha fontes em execução, progresso concluído e
+  consolidação. Falha de uma fonte não descarta resultados válidos das demais.
+- Ao carregar o detalhe de uma variante, o frontend sincroniza sua contagem,
+  mediana, faixa e varejistas no seletor de cor; resumo e detalhamento passam a
+  representar a mesma população comparável. Capacidade e cor ficam bloqueadas
+  durante a coleta para não combinar seleção nova com um snapshot anterior.
+- O README documenta o fluxo Docker e troubleshooting para macOS, Linux,
+  Windows/WSL 2, além da toolchain opcional para desenvolvimento local.
 
 ## Evidência funcional real
 
@@ -44,8 +55,12 @@ Produto focal: `Apple iPhone 17 Pro Max`.
   observações e `11` evidências após descoberta JavaScript limitada.
 - Americanas, run `1df5115e-f6d4-4ae2-8f28-67cd410a0868`: `succeeded`, `6`
   observações e `6` evidências.
-- Carrefour, run `fb3a4497-6d71-4796-aa5b-bb15a91772f8`: `succeeded`, `3`
-  observações e `3` evidências.
+- Carrefour possui run histórico `fb3a4497-6d71-4796-aa5b-bb15a91772f8` com
+  `3` observações e `3` evidências. A revalidação do iPhone 16, porém, terminou
+  sem observações no run `3e0388a3-1a1f-4839-baad-ce84f104d670`; a execução
+  isolada registrou `robotstxt/forbidden: 3`, uma recusa para cada capacidade
+  consultada. Como a política pública atual proíbe `/busca/`, a fonte voltou a
+  `candidate`.
 - Samsung Shop, produto `Samsung Galaxy S26 Ultra`, run
   `605b782f-966f-4777-a7c9-588e2c847e09`: `succeeded`, `6` observações e `6`
   evidências.
@@ -57,8 +72,8 @@ Produto focal: `Apple iPhone 17 Pro Max`.
   `54` ofertas deduplicadas e `17` varejistas. 256 GB, 512 GB, 1 TB e 2 TB
   possuem as três cores canônicas; a diversidade exata varia de `3` a `11`
   varejistas.
-- Readback de fontes habilitadas: Zoom, Buscapé, KaBuM!, Americanas, Carrefour e
-  Samsung Shop como mercado, todos com URL raiz, mais as duas fontes isoladas de
+- Readback de fontes habilitadas: Zoom, Buscapé, KaBuM!, Americanas e Samsung
+  Shop como mercado, todos com URL raiz, mais as duas fontes isoladas de
   laboratório. O seed mapeia
   33 fontes no total; as demais ficam explicitamente candidatas ou referências,
   incluindo varejo geral, marketplaces, especialistas, fabricantes, operadoras,
@@ -66,7 +81,7 @@ Produto focal: `Apple iPhone 17 Pro Max`.
 
 ## Verificação
 
-- `uv run pytest`: `144 passed`, `2 skipped` sem `API_BASE_URL`.
+- `uv run pytest`: `146 passed`, `2 skipped` sem `API_BASE_URL`.
 - `uv run ruff check .` e `uv run ruff format --check .`: aprovados.
 - `uv run ty check .`: aprovado.
 - `uv build`: sdist e wheel construídos.
@@ -80,9 +95,16 @@ Produto focal: `Apple iPhone 17 Pro Max`.
   worker em execução; API respondeu `{"status":"ok"}`.
 - Browser desktop: iPhone 17 Pro Max exibiu 512 GB, 1 TB e 2 TB com três cores;
   as comparações de 512 GB e 2 TB foram alternadas e renderizadas sem erro.
-- Browser final: iPhone mostra cinco coletores aplicáveis e Samsung Galaxy S26
-  Ultra mostra seis, incluindo Samsung Shop. O aviso do Brave Search foi movido
+- Browser final: iPhone mostra quatro coletores aplicáveis e Samsung Galaxy S26
+  Ultra mostra cinco, incluindo Samsung Shop. Carrefour aparece no registro como
+  `Em qualificação`, com o impedimento de busca explicado. O aviso do Brave Search foi movido
   da sidebar colapsável para o formulário do Radar, com quebra responsiva.
+- Browser do caso reportado, iPhone Air 256 GB Azul-Céu: seletor de cor, preço
+  central e diversidade convergiram em `2` ofertas, mediana `R$ 8.321,58` e `2`
+  varejistas.
+- Coleta final do iPhone 16 pela UI: quatro fontes concluídas, seletor de
+  variante bloqueado durante o snapshot e resumo `Mercado atualizado`, sem erro
+  global ou perda de resultados.
 - Browser mobile em `390x844`: sem overflow horizontal, sem erros de página e
   zero violações WCAG A/AA automatizadas. O axe manteve apenas verificações
   manuais inconclusivas onde o fundo usa gradiente.
@@ -105,7 +127,8 @@ Produto focal: `Apple iPhone 17 Pro Max`.
 
 ## Entrega remota
 
-- Commits: `e9e2550`, `2e86cf4` e `76ff9de`.
+- Commits do incremento: `e9e2550`, `2e86cf4`, `76ff9de`, `6c6a720`,
+  `f6ed16f` e `1482e08`.
 - Pull Request draft: [#9](https://github.com/Rdemora2/pricing-scraping/pull/9),
   empilhado sobre `feature/inc-08-quality-hardening`.
 - Checks observados no primeiro head: `governance` e `GitGuardian Security

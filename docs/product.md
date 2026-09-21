@@ -22,7 +22,7 @@ comparação?" e "como armazenamento e cor alteram o preço observado deste mode
 - catálogo tipado com 17 aparelhos e 221 variantes de mercado: linhas iPhone
   16/17/18 Pro e Air, Galaxy S25/S26 e Motorola Edge 70 Pro, cada família com
   referência oficial explícita;
-- coletores reais para Zoom, Buscapé, KaBuM!, Americanas, Carrefour e Samsung
+- coletores reais para Zoom, Buscapé, KaBuM!, Americanas e Samsung
   Shop, configurados pela raiz
   da fonte e orientados por aparelho/capacidade, com descoberta limitada de
   páginas, evidência, vendedor efetivo e atualização manual;
@@ -41,8 +41,8 @@ comparação?" e "como armazenamento e cor alteram o preço observado deste mode
   headless limitado como último recurso para fontes JavaScript revisadas;
 - matching determinístico por GTIN e, quando o GTIN está ausente, atributos;
 - comparação de preço atual com mínimo, mediana, máximo e exclusões;
-- leitura executiva por aparelho com cobertura, custo por GB, armazenamento de
-  melhor valor e índice de preço de cor normalizado por capacidade;
+- leitura executiva por aparelho com cobertura, escada de preço entre
+  capacidades e índice de cor normalizado por armazenamento;
 - painel para iniciar coletas, acompanhar fontes e explorar variantes.
 - landing page própria e workspace com visão geral, aparelhos, fontes, radar,
   cadastro de equipamento e cadastro de referência.
@@ -83,15 +83,16 @@ O modelo nunca agrega anúncios brutos diretamente. Primeiro, cada variante exat
 é filtrada pela população comparável e deduplicada por varejista. Depois:
 
 1. armazenamento usa a mediana dos preços medianos das cores observadas;
-2. custo por GB divide esse preço representativo pela capacidade;
+2. cada salto adjacente informa o acréscimo absoluto e percentual de preço;
 3. cor é comparada à mediana das cores dentro do mesmo armazenamento;
 4. cobertura informa quantas variantes canônicas possuem observações válidas;
-5. custo-benefício exige duas cores por capacidade, duas capacidades e três
-   varejistas; o índice de cor exige ao menos duas capacidades comparáveis.
+5. cada salto exige duas cores observadas nas duas capacidades e três
+   varejistas entre elas; o índice de cor exige ao menos duas capacidades comparáveis.
 
 Esse contrato evita concluir que uma cor é barata apenas porque apareceu em uma
-capacidade menor. O painel expõe método, amostra e estados `sem dados`, `limitada`,
-`em formação` ou `robusta`.
+capacidade menor e não chama a maior capacidade de melhor compra apenas porque o
+custo unitário cai. O painel expõe método, amostra e estados `sem dados`,
+`limitada`, `em formação` ou `robusta`.
 
 ## Meta de amostragem
 
@@ -104,6 +105,11 @@ combinações canônicas de armazenamento e cor ficaram
 observadas; a diversidade por combinação exata, porém, variou de `3` a `11`
 varejistas. A UX explicita essa diferença e não mistura capacidades, cores ou
 aliases para completar artificialmente a meta.
+
+Essa evidência histórica não mantém uma fonte ativa por si só. Na revalidação
+do iPhone 16, o Carrefour recusou as três buscas por capacidade porque seu
+`robots.txt` atual proíbe `/busca/`; o adapter voltou a `candidate` sem apagar
+as observações já auditáveis.
 
 ## Fora do escopo atual
 

@@ -8,7 +8,7 @@ O roadmap conclui o laboratório e avança o portal local de inteligência de
 preços com fontes reais. A entrega permanece limitada ao ambiente local; não
 inclui deploy ou cloud.
 
-No snapshot atual, 135 testes locais passaram e dois testes de integração foram
+No snapshot atual, 146 testes locais passaram e dois testes de integração foram
 corretamente ignorados sem `API_BASE_URL`; os mesmos dois passaram no container
 dedicado. Ruff, formatação, `ty`, pacote Python, frontend, imagens Docker, health,
 coleta real e navegação desktop/mobile estão verdes. API, worker e frontend foram
@@ -28,8 +28,8 @@ permitida e insuficiente pode acionar Chromium. Respostas de controle de acesso
 não acionam browser.
 
 O `INC-07A` entrega a primeira central de inteligência por aparelho. Ela calcula
-primeiro cada variante exata e depois agrega cobertura, faixa, custo por GB e
-diferenças de cor normalizadas por armazenamento. Recomendações permanecem
+primeiro cada variante exata e depois agrega cobertura, faixa, diferenças entre
+capacidades adjacentes e diferenças de cor normalizadas por armazenamento. Insights permanecem
 ausentes quando a amostra não sustenta a comparação. Testes, análise estática,
 build, imagens Docker e navegação desktop/mobile estão verdes; a revisão
 independente permanece como gate externo.
@@ -73,8 +73,14 @@ as execuções de Zoom/Buscapé/KaBuM!/Americanas/Carrefour registraram
 `25/49/11/6/3` observações brutas e a leitura atual chegou a `12/12`
 configurações, `54` ofertas deduplicadas e `17` varejistas. Samsung Shop também
 concluiu com `6` observações para o Galaxy S26 Ultra. O registro governado mapeia
-33 fontes; somente as seis com fluxo comprovado ficam ativas, enquanto as demais exibem seu estado de
-qualificação. A UX troca a lista plana por armazenamento e cor em duas etapas;
+33 fontes; cinco fontes de mercado ficam ativas. Carrefour voltou a candidato
+após a revalidação do iPhone 16 registrar três recusas por `robots.txt` na rota
+`/busca/`; o histórico permanece auditável, sem justificar novas execuções. As
+demais exibem seu estado de qualificação. A UX troca a lista plana por
+armazenamento e cor em duas etapas,
+substitui a recomendação enganosa por custo/GB pela escada incremental de preço
+e acompanha a coleta com progresso vivo. Uma fonte vazia não invalida os
+resultados das demais;
 512 GB, 1 TB e
 2 TB foram exercitados em browser, sem erro de página, overflow mobile ou
 violação WCAG automatizada. A diversidade exata ainda varia de `3` a `11`

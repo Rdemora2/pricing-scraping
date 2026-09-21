@@ -3,8 +3,9 @@
 ## Escopo e aceite
 
 - Branch: `feature/inc-07a-product-intelligence`.
-- Objetivo: transformar comparações exatas de variante em uma leitura executiva
-  de armazenamento, cor, cobertura e custo por GB.
+- Objetivo original: transformar comparações exatas de variante em uma leitura
+  executiva de armazenamento, cor e cobertura. O indicador inicial de custo por
+  GB foi substituído no INC-10 por diferenças incrementais entre capacidades.
 - Aceite: contrato `GET /products/{id}/intelligence`, interface responsiva,
   ausência explícita de recomendação com dados insuficientes e checks aplicáveis
   verdes.
@@ -13,7 +14,7 @@
 
 - uma cor só é comparada com outras cores do mesmo armazenamento;
 - o preço de armazenamento é a mediana das variantes observadas;
-- custo-benefício significa menor preço representativo por GB;
+- o contrato original de custo por GB não deve ser lido como recomendação atual;
 - ofertas condicionais, indisponíveis, usadas ou duplicadas continuam excluídas
   antes da agregação;
 - nenhuma recomendação é fabricada quando faltam alternativas comparáveis.
