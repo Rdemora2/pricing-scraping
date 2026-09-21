@@ -9,13 +9,26 @@ from pricing_intel.collection.real_sources import (
     MAX_AGGREGATE_OFFERS,
     BuscapeOfferParser,
     TwoAFinderMarkdownParser,
+    extract_amazon_listing,
+    extract_americanas_listing,
+    extract_carrefour_listing,
     extract_fast_shop_listing,
     extract_iplace_listings,
     extract_kabum_listing,
+    extract_product_search_urls,
     extract_samsung_shop_listings,
     extract_zoom_listings,
 )
-from pricing_intel.collection.spiders.retail import BuscapeSpider
+from pricing_intel.collection.spiders.retail import (
+    AmazonSpider,
+    AmericanasSpider,
+    BondfaroSpider,
+    BuscapeSpider,
+    CarrefourSpider,
+    KabumSpider,
+    SamsungShopSpider,
+    ZoomSpider,
+)
 from pricing_intel.domain.enums import Availability, Condition
 from pricing_intel.matching.signature import compute_signature
 from scripts.seed_catalog import PRODUCTS
@@ -29,6 +42,137 @@ def test_iter_product_json_ld_flattens_arrays_and_graphs() -> None:
     payload = [{"@graph": [{"@type": "BreadcrumbList"}, {"@type": "Product", "sku": "1"}]}]
 
     assert [item["sku"] for item in iter_product_json_ld(_html(payload))] == ["1"]
+
+
+def test_amazon_prefers_visible_buy_box_over_stale_json_ld() -> None:
+    page = (
+        _html(
+            {
+                "@type": "Product",
+                "name": "Apple iPhone 17 de 256 GB — Preto",
+                "offers": {"@type": "Offer", "price": "6220.10", "priceCurrency": "BRL"},
+            }
+        )
+        + """
+        <h1><span id="productTitle"> Apple iPhone 17 de 256 GB — Preto </span></h1>
+        <div id="corePrice_feature_div">
+          <span class="a-price apex-pricetopay-value">
+            <span class="a-offscreen">R$5.698,99</span>
+          </span>
+          <span>à vista no Pix ou NuPay</span>
+        </div>
+        <div id="availability"><span>Em estoque</span></div>
+        <div offer-display-feature-name="desktop-merchant-info">
+          <span class="a-size-small offer-display-feature-text-message">Amazon.com.br</span>
+        </div>
+    """
+    )
+
+    listing = extract_amazon_listing(
+        page,
+        "https://www.amazon.com.br/Apple-iPhone-17-256-GB/dp/B0GQW2J4SK",
+    )
+
+    assert listing.external_listing_id == "B0GQW2J4SK"
+    assert listing.price_amount == Decimal("5698.99")
+    assert listing.seller_display_name == "Amazon.com.br"
+    assert listing.attributes["storage_gb"] == "256"
+    assert listing.attributes["color"] == "Preto"
+    assert listing.payment_terms.price_basis.value == "cash"
+
+
+def test_amazon_accepts_visible_core_price_without_apex_class() -> None:
+    page = """
+        <h1><span id="productTitle">Apple iPhone 17 de 256 GB — Preto</span></h1>
+        <div id="corePrice_feature_div">
+          <span class="a-offscreen">R$6.220,10</span>
+        </div>
+        <div id="availability"><span>Em estoque</span></div>
+        <div offer-display-feature-name="desktop-merchant-info">
+          <span class="offer-display-feature-text-message">Amazon.com.br</span>
+        </div>
+    """
+
+    listing = extract_amazon_listing(
+        page,
+        "https://www.amazon.com.br/Apple-iPhone-17-256-GB/dp/B0GQW2J4SK",
+    )
+
+    assert listing.price_amount == Decimal("6220.10")
+    assert listing.payment_terms.price_basis.value == "advertised"
+
+
+@pytest.mark.parametrize(
+    ("seller", "sku", "price"),
+    [
+        ("mcs variedades", "337104577", "5669.10"),
+        ("loja iplace", "340005163", "6029.10"),
+    ],
+)
+def test_carrefour_uses_visible_pix_price_and_marketplace_seller(
+    seller: str, sku: str, price: str
+) -> None:
+    payload = {
+        "@type": "Product",
+        "name": "Apple iPhone 17 256GB Preto 6,3 polegadas 48MP iOS 5G",
+        "sku": sku,
+        "offers": {
+            "@type": "Offer",
+            "price": "6299.00",
+            "priceCurrency": "BRL",
+            "availability": "http://schema.org/InStock",
+            "itemCondition": "http://schema.org/NewCondition",
+        },
+    }
+    # Render the expected Brazilian value explicitly; the JSON-LD list price
+    # above must not override the scoped Pix price.
+    formatted_price = "R$ 5.669,10" if price == "5669.10" else "R$ 6.029,10"
+    page = (
+        _html(payload)
+        + f"<span>{formatted_price}</span><span>à vista no Pix</span>"
+        + f'Vendido e entregue por<!-- --> <a href="/parceiro">{seller}</a>'
+    )
+
+    listing = extract_carrefour_listing(
+        page,
+        f"https://www.carrefour.com.br/produto/iphone-17-{sku}",
+    )
+
+    assert listing.price_amount == Decimal(price)
+    assert listing.seller_display_name == seller
+    assert listing.external_listing_id == sku
+    assert listing.payment_terms.price_basis.value == "cash"
+
+
+def test_americanas_selects_positive_in_stock_marketplace_offer() -> None:
+    payload = {
+        "@type": "Product",
+        "name": "Apple iPhone 17 256GB Preto 6,3 polegadas 48MP iOS 5G",
+        "sku": "8841126",
+        "offers": [
+            {
+                "@type": "Offer",
+                "price": "5799",
+                "priceCurrency": "BRL",
+                "availability": "https://schema.org/InStock",
+                "seller": {"@type": "Organization", "name": "magazineluiza"},
+            },
+            {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "BRL",
+                "availability": "https://schema.org/OutOfStock",
+                "seller": {"@type": "Organization", "name": "1"},
+            },
+        ],
+    }
+
+    listing = extract_americanas_listing(_html(payload), "https://www.americanas.com.br/item/p")
+
+    assert listing.external_listing_id == "8841126"
+    assert listing.price_amount == Decimal("5799")
+    assert listing.seller_display_name == "magazineluiza"
+    assert listing.condition == Condition.NEW
 
 
 def test_iplace_extracts_multiple_real_variants() -> None:
@@ -281,6 +425,169 @@ def test_zoom_extracts_bounded_multi_retailer_sample() -> None:
     }
     assert all(item.payment_terms.price_basis.value == "cash" for item in listings)
     assert all(item.url.startswith("https://www.zoom.com.br/celular/") for item in listings)
+
+
+def test_search_discovery_keeps_only_exact_same_host_product_pages() -> None:
+    page = """
+      <a href="/celular/celular-apple-iphone-17-pro-max-512gb">iPhone 17 Pro Max 512GB</a>
+      <a href="/celular/celular-apple-iphone-17-pro-512gb">iPhone 17 Pro 512GB</a>
+      <a href="https://attacker.example/celular/apple-iphone-17-pro-max-512gb">externo</a>
+      <a href="/celular/celular-apple-iphone-17-pro-max-256gb">iPhone 17 Pro Max 256GB</a>
+    """
+
+    urls = extract_product_search_urls(
+        page,
+        "https://www.zoom.com.br/busca/apple%2Biphone%2B17%2Bpro%2Bmax%2B512gb",
+        product_name="Apple iPhone 17 Pro Max",
+        product_model="iphone_17_pro_max",
+        storage_gb="512",
+    )
+
+    assert urls == ["https://www.zoom.com.br/celular/celular-apple-iphone-17-pro-max-512gb"]
+
+
+@pytest.mark.parametrize(
+    ("product_name", "product_model", "expected_path"),
+    [
+        ("Apple iPhone 17", "iphone_17", "/celular/apple-iphone-17-256gb"),
+        ("Apple iPhone 17 Pro", "iphone_17_pro", "/celular/apple-iphone-17-pro-256gb"),
+        (
+            "Apple iPhone 17 Pro Max",
+            "iphone_17_pro_max",
+            "/celular/apple-iphone-17-pro-max-256gb",
+        ),
+        ("Samsung Galaxy S26", "galaxy_s26", "/celular/samsung-galaxy-s26-256gb"),
+        ("Samsung Galaxy S26+", "galaxy_s26_plus", "/celular/samsung-galaxy-s26-plus-256gb"),
+    ],
+)
+def test_search_discovery_does_not_mix_neighboring_models(
+    product_name: str, product_model: str, expected_path: str
+) -> None:
+    paths = [
+        "/celular/apple-iphone-17-256gb",
+        "/celular/apple-iphone-17-pro-256gb",
+        "/celular/apple-iphone-17-pro-max-256gb",
+        "/celular/samsung-galaxy-s26-256gb",
+        "/celular/samsung-galaxy-s26-plus-256gb",
+        "/celular/samsung-galaxy-s26-ultra-256gb",
+    ]
+    page = "".join(f'<a href="{path}">{path.replace("-", " ")}</a>' for path in paths)
+
+    urls = extract_product_search_urls(
+        page,
+        "https://www.zoom.com.br/busca/produto",
+        product_name=product_name,
+        product_model=product_model,
+        storage_gb="256",
+    )
+
+    assert urls == [f"https://www.zoom.com.br{expected_path}"]
+
+
+def test_search_discovery_can_resolve_model_landing_page_without_capacity() -> None:
+    page = """
+      <a href="/br/smartphones/galaxy-s26-ultra/">Galaxy S26 Ultra</a>
+      <a href="/br/smartphones/galaxy-s26/">Galaxy S26</a>
+    """
+
+    urls = extract_product_search_urls(
+        page,
+        "https://www.samsung.com/br/aisearch/?searchvalue=Galaxy+S26+Ultra",
+        product_name="Samsung Galaxy S26 Ultra",
+        product_model="galaxy_s26_ultra",
+        storage_gb=None,
+        product_path_markers=("/smartphones/",),
+    )
+
+    assert urls == ["https://www.samsung.com/br/smartphones/galaxy-s26-ultra/"]
+
+
+@pytest.mark.asyncio
+async def test_samsung_resolves_product_route_from_canonical_model() -> None:
+    spider = SamsungShopSpider(
+        source_id="source-1",
+        run_id="run-1",
+        base_url="https://shop.samsung.com/br/",
+        product_name="Samsung Galaxy S26 Ultra",
+        product_model="galaxy_s26_ultra",
+        storages="256,512,1024",
+    )
+    requests = [request async for request in spider.start()]
+
+    assert [item.url for item in requests] == ["https://shop.samsung.com/br/galaxy-s26-ultra/p"]
+    assert requests[0].callback == spider.parse_product
+
+
+@pytest.mark.parametrize(
+    "spider_class",
+    [
+        AmazonSpider,
+        AmericanasSpider,
+        BondfaroSpider,
+        CarrefourSpider,
+        ZoomSpider,
+        BuscapeSpider,
+        KabumSpider,
+    ],
+)
+def test_search_collectors_query_every_catalog_capacity(spider_class) -> None:
+    spider = spider_class(
+        source_id="00000000-0000-0000-0000-000000000001",
+        run_id="00000000-0000-0000-0000-000000000002",
+        base_url=f"https://www.{spider_class.name}.com.br/",
+        product_name="Apple iPhone 17 Pro Max",
+        product_model="iphone_17_pro_max",
+        storages="256,512,1024,2048",
+    )
+
+    requests = list(spider.catalog_search_requests(spider.parse_search))
+
+    assert len(requests) == 4
+    assert all(any(marker in request.url for marker in ("/busca/", "/s?")) for request in requests)
+    assert {request.cb_kwargs["storage_gb"] for request in requests} == {
+        "256",
+        "512",
+        "1024",
+        "2048",
+    }
+
+
+@pytest.mark.parametrize(
+    "product",
+    [product for product in PRODUCTS if product.reference_url is not None],
+    ids=lambda product: product.model,
+)
+def test_zoom_normalizes_every_market_product_in_the_catalog(product) -> None:
+    storage = product.storages_gb[0]
+    color = product.colors[0]
+    title = f"{product.name} {storage}GB {color.replace('-', ' ')}"
+    payload = {
+        "@type": "Product",
+        "name": product.name,
+        "offers": {
+            "@type": "AggregateOffer",
+            "offers": [
+                {
+                    "@type": "Offer",
+                    "id": f"offer-{product.model}",
+                    "name": title,
+                    "offeredBy": "Varejista homologado",
+                    "price": "4999.90",
+                    "priceCurrency": "BRL",
+                }
+            ],
+        },
+    }
+
+    listing = extract_zoom_listings(_html(payload), "https://www.zoom.com.br/celular/item")[0]
+
+    assert listing.attributes == {
+        "brand": product.brand.casefold(),
+        "model": product.model,
+        "region": "br",
+        "storage_gb": storage,
+        "color": color,
+    }
 
 
 def test_zoom_caps_untrusted_aggregate_offer_count() -> None:

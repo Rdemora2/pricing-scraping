@@ -15,6 +15,7 @@ from pricing_intel.domain.models import (
     OfferMatch,
     PaymentTerms,
     PriceObservation,
+    ProductVariantOfferSnapshot,
     ShippingTerms,
     VariantOfferSnapshot,
 )
@@ -133,6 +134,18 @@ async def list_latest_snapshots_for_variant(variant_id: UUID) -> list[VariantOff
         conn.cursor(row_factory=class_row(VariantOfferSnapshot)) as cur,
     ):
         await cur.execute(sql.LATEST_OBSERVATION_SNAPSHOTS_FOR_VARIANT, {"variant_id": variant_id})
+        return await cur.fetchall()
+
+
+async def list_latest_snapshots_for_product(
+    product_id: UUID,
+) -> list[ProductVariantOfferSnapshot]:
+    """Load every latest offer state for a product in one bounded query."""
+    async with (
+        connection() as conn,
+        conn.cursor(row_factory=class_row(ProductVariantOfferSnapshot)) as cur,
+    ):
+        await cur.execute(sql.LATEST_OBSERVATION_SNAPSHOTS_FOR_PRODUCT, {"product_id": product_id})
         return await cur.fetchall()
 
 

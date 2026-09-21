@@ -4,6 +4,7 @@ x-app-environment: &app-environment
   DATABASE_URL: postgresql://${POSTGRES_USER:-pricing_intel}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD_required}@postgres:5432/${POSTGRES_DB:-pricing_intel}
   ENVIRONMENT: local
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  COMPARISON_MAX_AGE_HOURS: ${COMPARISON_MAX_AGE_HOURS:-72}
   LAB_STORE_A_BASE_URL: http://lab-store-a:8000
   LAB_STORE_B_BASE_URL: http://lab-store-b:8000
 
@@ -11,6 +12,7 @@ x-app-service: &app-service
   build:
     context: .
     dockerfile: Dockerfile
+    target: runtime
   environment: *app-environment
   init: true
   restart: unless-stopped
@@ -84,6 +86,10 @@ services:
 
   worker:
     <<: *app-service
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: browser-runtime
     command:
       - procrastinate
       - -a
@@ -92,7 +98,7 @@ services:
       - --queues
       - collection
       - --concurrency
-      - "2"
+      - "1"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -100,15 +106,44 @@ services:
         condition: service_healthy
       lab-store-b:
         condition: service_healthy
-    mem_limit: 768m
+    mem_limit: 1024m
+    pids_limit: 256
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
     networks:
       - application
       - laboratory
+
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test-runtime
+    environment:
+      <<: *app-environment
+      API_BASE_URL: http://api:8000
+    command:
+      - pytest
+    depends_on:
+      api:
+        condition: service_healthy
+    init: true
+    profiles:
+      - test
+    restart: "no"
+    networks:
+      - application
 
   lab-store-a:
     build:
       context: .
       dockerfile: Dockerfile
+      target: runtime
     command:
       - uvicorn
       - lab.sources.store_a.app:app
@@ -139,6 +174,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: runtime
     command:
       - uvicorn
       - lab.sources.store_b.app:app

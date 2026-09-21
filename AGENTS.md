@@ -39,7 +39,7 @@ Typecheck: uv run ty check .
 Testes rápidos: uv run pytest tests/unit
 Testes completos: uv run pytest
 Build: docker compose build
-Teste de integração/e2e: docker compose run --rm api pytest tests/integration
+Teste de integração/e2e: docker compose --profile test run --rm test pytest tests/integration
 ```
 <!-- valiant-managed-commands:end -->
 

@@ -240,6 +240,30 @@ LATEST_OBSERVATION_SNAPSHOTS_FOR_VARIANT = """
     ORDER BY o.id, po.observed_at DESC
 """
 
+LATEST_OBSERVATION_SNAPSHOTS_FOR_PRODUCT = """
+    SELECT DISTINCT ON (om.variant_id, o.id)
+        om.variant_id AS variant_id,
+        o.id AS offer_id,
+        s.name AS source_name,
+        sl.display_name AS seller_name,
+        o.url AS url,
+        po.condition AS condition,
+        po.availability AS availability,
+        po.price_minor_units AS price_minor_units,
+        po.currency AS currency,
+        po.observed_at AS observed_at,
+        po.payment_terms AS payment_terms,
+        po.shipping AS shipping
+    FROM variant v
+    JOIN offer_match om ON om.variant_id = v.id AND om.is_active
+    JOIN offer o ON o.id = om.offer_id
+    JOIN source s ON s.id = o.source_id
+    JOIN seller sl ON sl.id = o.seller_id
+    JOIN price_observation po ON po.offer_id = o.id
+    WHERE v.product_id = %(product_id)s
+    ORDER BY om.variant_id, o.id, po.observed_at DESC
+"""
+
 COUNT_SOURCES_FOR_VARIANT = """
     SELECT COUNT(DISTINCT o.source_id) AS source_count
     FROM offer_match om

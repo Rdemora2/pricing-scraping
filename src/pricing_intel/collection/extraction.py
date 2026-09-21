@@ -114,9 +114,12 @@ def _properties_map(items: list[dict] | None) -> dict[str, str]:
 
 def _parse_price(raw_price: object) -> Decimal:
     try:
-        return Decimal(str(raw_price))
+        price = Decimal(str(raw_price))
     except InvalidOperation as exc:
         raise ExtractionError(f"unparseable price value: {raw_price!r}") from exc
+    if not price.is_finite() or price <= 0:
+        raise ExtractionError("Offer price must be finite and positive")
+    return price
 
 
 def _parse_payment_terms(properties: dict[str, str]) -> PaymentTerms:

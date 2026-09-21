@@ -7,6 +7,7 @@ zero-cloud local requirement.
 
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,6 +25,10 @@ class Settings(BaseSettings):
     # How many complete collection runs to keep per (source, url). Every offer
     # extracted from a retained page remains linked to the same HTML evidence.
     evidence_retention_per_url: int = 5
+
+    # Older observations remain in history but no longer influence the
+    # current market comparison.
+    comparison_max_age_hours: int = Field(default=72, ge=1, le=8760)
 
     # Optional. Broad web discovery stays disabled until the operator provides
     # a Brave Search API key; the key is only read server-side.

@@ -182,6 +182,12 @@ class VariantOfferSnapshot(_Model):
     shipping: ShippingTerms
 
 
+class ProductVariantOfferSnapshot(VariantOfferSnapshot):
+    """Latest offer state enriched with the canonical variant it belongs to."""
+
+    variant_id: UUID
+
+
 class PriceObservation(_Model):
     id: UUID
     offer_id: UUID

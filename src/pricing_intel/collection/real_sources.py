@@ -10,9 +10,14 @@ import html as html_module
 import json
 import re
 import unicodedata
+from contextlib import suppress
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+from urllib.parse import unquote, urljoin, urlsplit
 
+from parsel import Selector
+
+from pricing_intel.catalog import CATALOG_PRODUCTS, CatalogProduct
 from pricing_intel.collection.extraction import (
     ExtractionError,
     iter_product_json_ld,
@@ -24,6 +29,7 @@ from pricing_intel.domain.models import PaymentTerms, ShippingTerms
 
 MAX_PRODUCT_VARIANTS = 24
 MAX_AGGREGATE_OFFERS = 20
+MAX_SEARCH_RESULTS_PER_CAPACITY = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,15 +49,10 @@ class RetailListing:
     shipping: ShippingTerms
 
 
-_IPHONE_17_NAME = re.compile(
-    r"iphone\s+17(?:\s+apple)?[^0-9]*(?P<storage>256|512)\s*gb(?:\s+|.*?cor\s+)(?P<color>[^,|]+)",
-    re.IGNORECASE,
+_STORAGE = re.compile(
+    r"(?:capacidade|armazenamento|mem[oó]ria)?\s*:?[ ]*(128|256|512|1024|2048)\s*gb",
+    re.I,
 )
-_GALAXY_S26_NAME = re.compile(
-    r"galaxy\s+s26(?P<suffix>\+|\s*plus|\s*ultra)?.*?(?P<storage>256|512|1\s*tb|1024)\s*(?:gb)?",
-    re.IGNORECASE,
-)
-_STORAGE = re.compile(r"(?:capacidade|armazenamento|mem[oó]ria)?\s*:?[ ]*(256|512)\s*gb", re.I)
 _MODEL = re.compile(r"modelo\s*:?[ ]*([A-Z0-9/\-]+)", re.I)
 _COLOR = re.compile(r"cor\s*:?[ ]*([\wÀ-ÿ\- ]+?)(?:<|\||,|$)", re.I)
 _INSTALLMENTS = re.compile(r"\b(\d{1,2})\s*x\b", re.I)
@@ -80,63 +81,57 @@ def _offer(product: dict) -> dict:
 def _price(offer: dict) -> Decimal:
     raw = offer.get("price", offer.get("lowPrice"))
     try:
-        return Decimal(str(raw))
+        price = Decimal(str(raw))
     except (InvalidOperation, TypeError) as exc:
         raise ExtractionError(f"unparseable retail price: {raw!r}") from exc
+    if not price.is_finite() or price <= 0:
+        raise ExtractionError("retail price must be finite and positive")
+    return price
 
 
-def _iphone_attributes(storage: str, color: str) -> dict[str, str]:
-    return {
-        "brand": "apple",
-        "model": "iphone_17",
-        "region": "br",
-        "storage_gb": storage,
-        "color": color.strip(),
-    }
-
-
-def _galaxy_attributes(*, model_suffix: str, storage: str, color: str) -> dict[str, str]:
-    suffix = model_suffix.casefold().strip()
-    model = (
-        "galaxy_s26_ultra"
-        if "ultra" in suffix
-        else "galaxy_s26_plus"
-        if suffix in {"+", "plus"}
-        else "galaxy_s26"
+def _fold_text(value: str) -> str:
+    value = value.replace("+", " plus ")
+    without_marks = "".join(
+        character
+        for character in unicodedata.normalize("NFKD", value.casefold())
+        if not unicodedata.combining(character)
     )
-    normalized_storage = "1024" if "tb" in storage.casefold() else storage.strip()
-    return {
-        "brand": "samsung",
-        "model": model,
-        "region": "br",
-        "storage_gb": normalized_storage,
-        "color": color.strip(),
+    return re.sub(r"[^a-z0-9]+", " ", without_marks).strip()
+
+
+def _identity_aliases(product: CatalogProduct) -> tuple[str, ...]:
+    aliases = {
+        product.name,
+        re.sub(rf"^{re.escape(product.brand)}\s+", "", product.name, flags=re.I),
     }
+    if "+" in product.name:
+        aliases.update(alias.replace("+", " Plus") for alias in tuple(aliases))
+    return tuple({_fold_text(alias) for alias in aliases})
+
+
+_MARKET_PRODUCTS = tuple(
+    product for product in CATALOG_PRODUCTS if product.reference_url is not None
+)
+_IDENTITY_ALIASES = tuple(
+    sorted(
+        ((alias, product) for product in _MARKET_PRODUCTS for alias in _identity_aliases(product)),
+        key=lambda item: len(item[0]),
+        reverse=True,
+    )
+)
+_PRODUCT_BY_MODEL = {product.model: product for product in _MARKET_PRODUCTS}
 
 
 def _catalog_identity(text: str) -> tuple[str, str, str]:
-    normalized = "".join(
-        character
-        for character in unicodedata.normalize("NFKD", text.casefold())
-        if not unicodedata.combining(character)
-    )
-    if "iphone 17 pro max" in normalized:
-        return "apple", "iphone_17_pro_max", "Apple iPhone 17 Pro Max"
-    if "iphone 17 pro" in normalized:
-        return "apple", "iphone_17_pro", "Apple iPhone 17 Pro"
-    if "iphone 17" in normalized:
-        return "apple", "iphone_17", "Apple iPhone 17"
-    if "galaxy s26 ultra" in normalized:
-        return "samsung", "galaxy_s26_ultra", "Samsung Galaxy S26 Ultra"
-    if "galaxy s26+" in normalized or "galaxy s26 plus" in normalized:
-        return "samsung", "galaxy_s26_plus", "Samsung Galaxy S26+"
-    if "galaxy s26" in normalized:
-        return "samsung", "galaxy_s26", "Samsung Galaxy S26"
+    normalized = f" {_fold_text(text)} "
+    for alias, product in _IDENTITY_ALIASES:
+        if f" {alias} " in normalized:
+            return product.brand.casefold(), product.model, product.name
     raise ExtractionError("retail product is outside the canonical device catalog")
 
 
 def _storage_from_text(text: str) -> str:
-    match = re.search(r"\b(256|512|1024|2048)\s*gb\b|\b([12])\s*tb\b", text, re.I)
+    match = re.search(r"\b(128|256|512|1024|2048)\s*gb\b|\b([12])\s*tb\b", text, re.I)
     if not match:
         raise ExtractionError("retail offer is missing storage capacity")
     if match.group(2):
@@ -144,29 +139,42 @@ def _storage_from_text(text: str) -> str:
     return str(match.group(1))
 
 
+_MODEL_COLOR_ALIASES: dict[str, dict[str, str]] = {
+    "iphone_16": {"verde": "Verde-Acinzentado"},
+    "iphone_16_plus": {"verde": "Verde-Acinzentado"},
+    "iphone_16_pro": {
+        "preto": "Titânio-Preto",
+        "branco": "Titânio-Branco",
+        "natural": "Titânio-Natural",
+        "deserto": "Titânio-Deserto",
+    },
+    "iphone_16_pro_max": {
+        "preto": "Titânio-Preto",
+        "branco": "Titânio-Branco",
+        "natural": "Titânio-Natural",
+        "deserto": "Titânio-Deserto",
+    },
+    "iphone_17_pro": {"prata": "Prateado", "azul": "Azul-Intenso"},
+    "iphone_17_pro_max": {"prata": "Prateado", "azul": "Azul-Intenso"},
+    "galaxy_s25_ultra": {
+        "azul": "Titânio-Azul",
+        "preto": "Titânio-Preto",
+        "cinza": "Titânio-Cinza",
+        "prata": "Titânio-Prata",
+    },
+}
+
+
 def _color_from_text(text: str, *, model: str) -> str:
-    folded = "".join(
-        character
-        for character in unicodedata.normalize("NFKD", text.casefold())
-        if not unicodedata.combining(character)
-    )
-    folded = re.sub(r"[^a-z0-9]+", " ", folded)
-    aliases = {
-        "azul intenso": "Azul-Intenso",
-        "laranja cosmico": "Laranja-Cósmico",
-        "azul nevoa": "Azul-Névoa",
-        "salvia": "Sálvia",
-        "prateado": "Prateado",
-        "prata": "Prateado" if model.startswith("iphone_17_pro") else "Prata",
-        "lavanda": "Lavanda",
-        "violeta": "Violeta",
-        "dourado": "Dourado",
-        "branco": "Branco",
-        "preto": "Preto",
-        "azul": "Azul-Intenso" if model.startswith("iphone_17_pro") else "Azul",
-    }
-    for marker, canonical in aliases.items():
-        if marker in folded:
+    product = _PRODUCT_BY_MODEL.get(model)
+    if product is None:
+        raise ExtractionError(f"unknown canonical model: {model!r}")
+
+    folded = f" {_fold_text(text)} "
+    aliases = {_fold_text(color): color for color in product.colors}
+    aliases.update(_MODEL_COLOR_ALIASES.get(model, {}))
+    for marker, canonical in sorted(aliases.items(), key=lambda item: len(item[0]), reverse=True):
+        if f" {_fold_text(marker)} " in folded:
             return canonical
     raise ExtractionError(f"retail offer is missing a supported color: {text!r}")
 
@@ -185,6 +193,263 @@ def _brl_amount(value: str) -> Decimal:
     if amount <= 0:
         raise ExtractionError("retail price must be positive")
     return amount
+
+
+def _plain_text(fragment: str) -> str:
+    """Collapse a small, already-bounded HTML fragment into visible text."""
+    without_tags = re.sub(r"<[^>]+>", " ", fragment)
+    return re.sub(r"\s+", " ", html_module.unescape(without_tags)).strip()
+
+
+def extract_product_search_urls(
+    page_html: str,
+    page_url: str,
+    *,
+    product_name: str,
+    product_model: str,
+    storage_gb: str | None,
+    product_path_markers: tuple[str, ...] = ("/celular/",),
+) -> list[str]:
+    """Select exact product pages from one retailer search result.
+
+    Search pages are untrusted discovery surfaces. The adapter keeps only
+    same-host smartphone URLs whose visible/link text includes the canonical
+    product identity and requested capacity; every followed page is parsed
+    again by the retailer-specific product extractor.
+    """
+    selector = Selector(text=page_html)
+    expected_product_tokens = set(_fold_text(product_name).split())
+    storage_markers: set[str] = set()
+    if storage_gb is not None:
+        storage_value = int(storage_gb)
+        storage_markers = {
+            f"{storage_value} gb",
+            f"{storage_value}gb",
+            f"{storage_value // 1024} tb" if storage_value >= 1024 else "",
+            f"{storage_value // 1024}tb" if storage_value >= 1024 else "",
+        }
+    source_host = (urlsplit(page_url).hostname or "").casefold()
+    results: list[str] = []
+    seen: set[str] = set()
+
+    for anchor in selector.css("a[href]"):
+        href = anchor.attrib.get("href", "").strip()
+        if not href:
+            continue
+        candidate = urljoin(page_url, href)
+        parsed = urlsplit(candidate)
+        if (parsed.hostname or "").casefold() != source_host or not any(
+            marker in parsed.path for marker in product_path_markers
+        ):
+            continue
+        visible = " ".join(anchor.css("::text").getall())
+        haystack = _fold_text(f"{unquote(candidate)} {visible}")
+        if not expected_product_tokens <= set(haystack.split()):
+            continue
+        try:
+            _, discovered_model, _ = _catalog_identity(haystack)
+        except ExtractionError:
+            continue
+        if discovered_model != product_model:
+            continue
+        if storage_markers and not any(marker and marker in haystack for marker in storage_markers):
+            continue
+        canonical = candidate.split("#", 1)[0]
+        if canonical in seen:
+            continue
+        seen.add(canonical)
+        results.append(canonical)
+        if len(results) >= MAX_SEARCH_RESULTS_PER_CAPACITY:
+            break
+    return results
+
+
+def _canonical_attributes(title: str) -> dict[str, str]:
+    brand, model, _ = _catalog_identity(title)
+    return {
+        "brand": brand,
+        "model": model,
+        "region": "br",
+        "storage_gb": _storage_from_text(title),
+        "color": _color_from_text(title, model=model),
+    }
+
+
+def extract_amazon_listing(page_html: str, page_url: str) -> RetailListing:
+    """Extract Amazon's selected buy-box offer from its visible product page.
+
+    Amazon's Product JSON-LD can lag behind the rendered buy box. The adapter
+    therefore reads the scoped visible price, stock and merchant blocks and
+    fails closed when any of those commercial fields is absent.
+    """
+    selector = Selector(text=page_html)
+    title = " ".join(selector.css("#productTitle::text").getall()).strip()
+    price = (
+        selector.css("#corePrice_feature_div .apex-pricetopay-value .a-offscreen::text").get()
+        or selector.css("#corePrice_feature_div .a-offscreen::text").get()
+    )
+    seller_candidates = [
+        value.strip()
+        for value in selector.css(
+            '[offer-display-feature-name="desktop-merchant-info"] '
+            ".offer-display-feature-text-message::text"
+        ).getall()
+        if value.strip()
+    ]
+    seller_name = seller_candidates[0] if seller_candidates else ""
+    asin_match = re.search(r"/dp/(?P<asin>[A-Z0-9]{10})(?:[/?]|$)", page_url, re.IGNORECASE)
+    missing = [
+        field
+        for field, absent in (
+            ("title", not title),
+            ("price", price is None),
+            ("merchant", not seller_name),
+            ("asin", asin_match is None),
+        )
+        if absent
+    ]
+    if missing:
+        raise ExtractionError(
+            f"Amazon page is missing visible buy-box fields: {', '.join(missing)}"
+        )
+    assert price is not None and asin_match is not None
+
+    availability_text = " ".join(selector.css("#availability ::text").getall()).casefold()
+    visible_in_stock = any(
+        marker in availability_text for marker in ("em estoque", "disponível", "in stock")
+    )
+    add_to_cart_available = bool(selector.css('#add-to-cart-button, [name="submit.add-to-cart"]'))
+    product = next(iter_product_json_ld(page_html), None)
+    json_ld_in_stock = False
+    if product is not None:
+        with suppress(ExtractionError):
+            json_ld_in_stock = (
+                parse_availability(str(_offer(product).get("availability") or ""))
+                == Availability.IN_STOCK
+            )
+    if not visible_in_stock and not json_ld_in_stock and not add_to_cart_available:
+        raise ExtractionError("Amazon buy box does not confirm the item is in stock")
+
+    is_cash = bool(re.search(r"à vista no Pix(?: ou NuPay)?", page_html, re.IGNORECASE))
+    return RetailListing(
+        external_listing_id=asin_match.group("asin").upper(),
+        url=page_url,
+        raw_title=title,
+        gtin=None,
+        attributes=_canonical_attributes(title),
+        seller_external_id=_external_id(seller_name),
+        seller_display_name=seller_name,
+        price_amount=_brl_amount(price),
+        currency="BRL",
+        availability=Availability.IN_STOCK,
+        condition=Condition.NEW,
+        payment_terms=PaymentTerms(
+            price_basis=PriceBasis.CASH if is_cash else PriceBasis.ADVERTISED,
+            condition_summary="à vista via Pix ou NuPay" if is_cash else None,
+        ),
+        shipping=ShippingTerms(known=False),
+    )
+
+
+def extract_carrefour_listing(page_html: str, page_url: str) -> RetailListing:
+    """Extract Carrefour marketplace identity plus the visible Pix price."""
+    product = next(iter_product_json_ld(page_html), None)
+    if product is None:
+        raise ExtractionError("no Product JSON-LD found on Carrefour page")
+    offer = _offer(product)
+    title = html_module.unescape(str(product.get("name") or "")).strip()
+    sku = str(product.get("sku") or offer.get("sku") or "").strip()
+    price_match = re.search(
+        r"(?P<price>R\$\s*[\d.]+,\d{2})</span>.{0,600}?à vista no Pix",
+        page_html,
+        re.IGNORECASE | re.DOTALL,
+    )
+    seller_match = re.search(
+        r"Vendido\s+e\s+entregue\s+por(?:\s|<!--.*?-->)*"
+        r"<a\b[^>]*>(?P<seller>.*?)</a>",
+        page_html,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if not sku or price_match is None or seller_match is None:
+        raise ExtractionError("Carrefour page is missing SKU, Pix price or marketplace seller")
+    seller_name = _plain_text(seller_match.group("seller"))
+    if not seller_name:
+        raise ExtractionError("Carrefour page contains an empty marketplace seller")
+    availability = parse_availability(str(offer.get("availability") or ""))
+    condition = parse_condition(str(offer.get("itemCondition") or ""))
+    if availability == Availability.UNKNOWN or condition == Condition.UNKNOWN:
+        raise ExtractionError("Carrefour JSON-LD does not confirm stock and condition")
+    return RetailListing(
+        external_listing_id=sku,
+        url=page_url,
+        raw_title=title,
+        gtin=None,
+        attributes=_canonical_attributes(title),
+        seller_external_id=_external_id(seller_name),
+        seller_display_name=seller_name,
+        price_amount=_brl_amount(price_match.group("price")),
+        currency=str(offer.get("priceCurrency") or "BRL"),
+        availability=availability,
+        condition=condition,
+        payment_terms=PaymentTerms(
+            price_basis=PriceBasis.CASH,
+            condition_summary="à vista via Pix",
+        ),
+        shipping=ShippingTerms(known=False),
+    )
+
+
+def extract_americanas_listing(page_html: str, page_url: str) -> RetailListing:
+    """Extract the first positive, in-stock marketplace offer from Americanas."""
+    product = next(iter_product_json_ld(page_html), None)
+    if product is None:
+        raise ExtractionError("no Product JSON-LD found on Americanas page")
+    title = html_module.unescape(str(product.get("name") or "")).strip()
+    sku = str(product.get("sku") or "").strip()
+    offers = product.get("offers")
+    if not sku or not isinstance(offers, list):
+        raise ExtractionError("Americanas Product JSON-LD is missing SKU or offers")
+
+    selected_offer: dict | None = None
+    for candidate in offers[:MAX_AGGREGATE_OFFERS]:
+        if not isinstance(candidate, dict):
+            continue
+        seller_value = candidate.get("seller")
+        seller = seller_value if isinstance(seller_value, dict) else {}
+        try:
+            price = _price(candidate)
+        except ExtractionError:
+            continue
+        if (
+            price > 0
+            and parse_availability(str(candidate.get("availability") or ""))
+            == Availability.IN_STOCK
+            and str(seller.get("name") or "").strip()
+        ):
+            selected_offer = candidate
+            break
+    if selected_offer is None:
+        raise ExtractionError("Americanas page has no positive in-stock marketplace offer")
+
+    seller_value = selected_offer.get("seller")
+    seller = seller_value if isinstance(seller_value, dict) else {}
+    seller_name = str(seller.get("name") or "").strip()
+    return RetailListing(
+        external_listing_id=sku,
+        url=page_url,
+        raw_title=title,
+        gtin=None,
+        attributes=_canonical_attributes(title),
+        seller_external_id=_external_id(seller_name),
+        seller_display_name=seller_name,
+        price_amount=_price(selected_offer),
+        currency=str(selected_offer.get("priceCurrency") or "BRL"),
+        availability=Availability.IN_STOCK,
+        # The adapter is enabled only for the reviewed new-device product URL.
+        condition=Condition.NEW,
+        payment_terms=PaymentTerms(price_basis=PriceBasis.ADVERTISED),
+        shipping=ShippingTerms(known=False),
+    )
 
 
 class TwoAFinderMarkdownParser:
@@ -406,8 +671,9 @@ def extract_iplace_listings(page_html: str, page_url: str) -> list[RetailListing
         if len(listings) >= MAX_PRODUCT_VARIANTS:
             break
         name = str(product.get("name", "")).strip()
-        match = _IPHONE_17_NAME.search(name)
-        if not match:
+        try:
+            attributes = _canonical_attributes(name)
+        except ExtractionError:
             continue
         offer = _offer(product)
         sku = str(product.get("sku") or offer.get("sku") or "").strip()
@@ -423,7 +689,7 @@ def extract_iplace_listings(page_html: str, page_url: str) -> list[RetailListing
                 # iPlace identifiers remain attribute-matched until each GTIN is
                 # independently verified against the canonical catalog.
                 gtin=None,
-                attributes=_iphone_attributes(match.group("storage"), match.group("color")),
+                attributes=attributes,
                 seller_external_id="iplace",
                 seller_display_name=str(seller.get("name") or "iPlace"),
                 price_amount=_price(offer),
@@ -435,7 +701,7 @@ def extract_iplace_listings(page_html: str, page_url: str) -> list[RetailListing
             )
         )
     if not listings:
-        raise ExtractionError("no iPhone 17 variants found in iPlace JSON-LD")
+        raise ExtractionError("no canonical iPhone variants found in iPlace JSON-LD")
     return listings
 
 
@@ -560,12 +826,13 @@ def extract_samsung_shop_listings(page_html: str, page_url: str) -> list[RetailL
         if len(listings) >= MAX_PRODUCT_VARIANTS:
             break
         name = str(product.get("name", "")).strip()
-        match = _GALAXY_S26_NAME.search(name)
-        if not match:
+        color = str(product.get("color") or "").strip()
+        try:
+            attributes = _canonical_attributes(f"{name} {color}")
+        except ExtractionError:
             continue
         offer = _offer(product)
         sku = str(product.get("sku") or product.get("mpn") or "").strip()
-        color = str(product.get("color") or "").strip()
         if not sku or not color:
             # The VTEX page also emits one summary Product block without a
             # color. Only ProductGroup variants identify a canonical SKU.
@@ -581,11 +848,7 @@ def extract_samsung_shop_listings(page_html: str, page_url: str) -> list[RetailL
                 # attribute-match until a separate catalog enrichment step has
                 # verified and persisted every Samsung SKU/GTIN pair.
                 gtin=None,
-                attributes=_galaxy_attributes(
-                    model_suffix=match.group("suffix") or "",
-                    storage=match.group("storage"),
-                    color=color,
-                ),
+                attributes=attributes,
                 seller_external_id="samsung-shop-brasil",
                 seller_display_name=str(seller.get("name") or "Samsung Shop Brasil"),
                 price_amount=_price(offer),
@@ -597,7 +860,7 @@ def extract_samsung_shop_listings(page_html: str, page_url: str) -> list[RetailL
             )
         )
     if not listings:
-        raise ExtractionError("no Galaxy S26 variants found in Samsung Shop JSON-LD")
+        raise ExtractionError("no canonical Galaxy variants found in Samsung Shop JSON-LD")
     return listings
 
 

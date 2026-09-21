@@ -4,6 +4,7 @@ Every politeness/robustness knob a scraping-focused review would look
 for is set explicitly here rather than left at Scrapy's defaults.
 """
 
+from pricing_intel.collection.browser import DECLARED_USER_AGENT
 from pricing_intel.config import get_settings
 
 _settings = get_settings()
@@ -13,7 +14,12 @@ BOT_NAME = "pricing_intel_collector"
 SPIDER_MODULES = ["pricing_intel.collection.spiders"]
 NEWSPIDER_MODULE = "pricing_intel.collection.spiders"
 
-USER_AGENT = "pricing-intel-lab-bot/0.1 (+local pricing intelligence portfolio project)"
+USER_AGENT = DECLARED_USER_AGENT
+DEFAULT_REQUEST_HEADERS = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.5",
+    "Cache-Control": "no-cache",
+}
 
 # Ethical/responsible-scraping defaults (brief section 9): obey robots.txt,
 # throttle adaptively, retry transient failures, never hammer a domain.
@@ -36,6 +42,24 @@ ITEM_PIPELINES = {
 DOWNLOADER_MIDDLEWARES = {
     "pricing_intel.collection.network_policy.OutboundPolicyMiddleware": 50,
 }
+
+# Browser acquisition is opt-in through request metadata. Plain Scrapy requests
+# continue through the same handler without launching Chromium.
+DOWNLOAD_HANDLERS = {
+    "https": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
+}
+PLAYWRIGHT_BROWSER_TYPE = "chromium"
+PLAYWRIGHT_LAUNCH_OPTIONS = {
+    "headless": True,
+    # Chromium's internal user-namespace sandbox is unavailable under the
+    # default Docker profile. The worker supplies the outer boundary instead:
+    # non-root user, no capabilities, no-new-privileges and read-only rootfs.
+    "chromium_sandbox": False,
+    "timeout": 15_000,
+}
+PLAYWRIGHT_MAX_CONTEXTS = 1
+PLAYWRIGHT_MAX_PAGES_PER_CONTEXT = 1
+PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT = 15_000
 
 REQUEST_FINGERPRINTER_IMPLEMENTATION = "2.7"
 TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"

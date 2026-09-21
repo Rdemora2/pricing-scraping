@@ -27,7 +27,14 @@ class SpiderRunResult:
 
 
 async def run_spider(
-    *, spider_name: str, source_id: UUID, run_id: UUID, base_url: str
+    *,
+    spider_name: str,
+    source_id: UUID,
+    run_id: UUID,
+    base_url: str,
+    product_name: str | None = None,
+    product_model: str | None = None,
+    storages: list[str] | None = None,
 ) -> SpiderRunResult:
     env = {
         **os.environ,
@@ -35,18 +42,32 @@ async def run_spider(
         "XDG_CACHE_HOME": "/tmp/pricing-intel-cache",
         "XDG_STATE_HOME": "/tmp/pricing-intel-state",
     }
-    process = await asyncio.create_subprocess_exec(
-        sys.executable,
-        "-m",
-        "scrapy",
-        "crawl",
-        spider_name,
+    spider_args = [
         "-a",
         f"source_id={source_id}",
         "-a",
         f"run_id={run_id}",
         "-a",
         f"base_url={base_url}",
+    ]
+    if product_name and product_model and storages:
+        spider_args.extend(
+            [
+                "-a",
+                f"product_name={product_name}",
+                "-a",
+                f"product_model={product_model}",
+                "-a",
+                f"storages={','.join(storages)}",
+            ]
+        )
+    process = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-m",
+        "scrapy",
+        "crawl",
+        spider_name,
+        *spider_args,
         env=env,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,

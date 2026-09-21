@@ -64,6 +64,15 @@ def test_extract_listing_rejects_missing_offer_fields(
         extract_listing(payload)
 
 
+@pytest.mark.parametrize("price", ["0", "-1.00"])
+def test_extract_listing_rejects_non_positive_price(product_payload: dict, price: str) -> None:
+    payload = deepcopy(product_payload)
+    payload["offers"]["price"] = price
+
+    with pytest.raises(ExtractionError, match="positive"):
+        extract_listing(payload)
+
+
 def test_extract_listing_rejects_missing_variant_attributes(product_payload: dict) -> None:
     payload = deepcopy(product_payload)
     payload["additionalProperty"] = []

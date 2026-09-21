@@ -107,5 +107,76 @@ export type Comparison = {
   excluded: ExcludedOffer[];
   oldest_observation_at: string | null;
   newest_observation_at: string | null;
+  freshness_window_hours: number;
+  generated_at: string;
+};
+
+export type VariantIntelligence = {
+  variant_id: string;
+  storage_gb: number;
+  color: string;
+  min_price: string | null;
+  median_price: string | null;
+  max_price: string | null;
+  offer_count: number;
+  retailer_count: number;
+};
+
+export type StorageIntelligence = {
+  storage_gb: number;
+  catalog_variant_count: number;
+  observed_variant_count: number;
+  min_price: string | null;
+  representative_price: string | null;
+  max_price: string | null;
+};
+
+export type StorageStepIntelligence = {
+  from_storage_gb: number;
+  to_storage_gb: number;
+  added_storage_gb: number;
+  from_price: string;
+  to_price: string;
+  price_delta: string;
+  price_delta_pct: string;
+};
+
+export type ColorIntelligence = {
+  color: string;
+  catalog_variant_count: number;
+  observed_variant_count: number;
+  comparable_storage_count: number;
+  min_price: string | null;
+  representative_price: string | null;
+  max_price: string | null;
+  relative_price_delta_pct: string | null;
+};
+
+export type ProductIntelligence = {
+  product_id: string;
+  currency: string;
+  catalog_variant_count: number;
+  observed_variant_count: number;
+  coverage_pct: number;
+  total_offer_count: number;
+  retailer_count: number;
+  sample_status: "no_data" | "limited" | "developing" | "strong";
+  storages_gb: number[];
+  colors: string[];
+  min_price: string | null;
+  max_price: string | null;
+  cheapest_variant: VariantIntelligence | null;
+  most_expensive_variant: VariantIntelligence | null;
+  entry_storage_step: StorageStepIntelligence | null;
+  cheapest_storage: StorageIntelligence | null;
+  most_expensive_storage: StorageIntelligence | null;
+  cheapest_color: ColorIntelligence | null;
+  most_expensive_color: ColorIntelligence | null;
+  storage_steps: StorageStepIntelligence[];
+  storage_analysis: StorageIntelligence[];
+  color_analysis: ColorIntelligence[];
+  variant_analysis: VariantIntelligence[];
+  methodology: string[];
+  freshness_window_hours: number;
   generated_at: string;
 };

@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request
 
-from pricing_intel.api.schemas import RunResponse, SourceResponse
+from pricing_intel.api.schemas import CollectionRequest, RunResponse, SourceResponse
 from pricing_intel.db.queries import runs as runs_q
 from pricing_intel.db.queries import sources as sources_q
 from pricing_intel.discovery.service import SourceNotEnabledError, trigger_collection
@@ -59,13 +59,15 @@ async def list_sources(enabled_only: bool = True) -> list[SourceResponse]:
 
 
 @router.post("/sources/{source_id}/collect", response_model=RunResponse, status_code=202)
-async def collect_source(source_id: UUID, request: Request) -> RunResponse:
+async def collect_source(
+    source_id: UUID, request: Request, payload: CollectionRequest
+) -> RunResponse:
     origin = request.headers.get("origin")
     if origin is not None and not _is_allowed_local_origin(origin):
         raise HTTPException(status_code=403, detail="origin not allowed")
 
     try:
-        run = await trigger_collection(source_id)
+        run = await trigger_collection(source_id, product_id=payload.product_id)
     except SourceNotEnabledError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:

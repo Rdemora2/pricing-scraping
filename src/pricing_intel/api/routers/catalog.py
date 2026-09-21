@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request
@@ -11,12 +11,15 @@ from pricing_intel.api.schemas import (
     ComparisonResponse,
     ProductCreateRequest,
     ProductDetailResponse,
+    ProductIntelligenceResponse,
     ProductResponse,
     VariantResponse,
 )
+from pricing_intel.config import get_settings
 from pricing_intel.db.queries import catalog as catalog_q
 from pricing_intel.db.queries import offers as offers_q
 from pricing_intel.pricing.analysis import compare_variant
+from pricing_intel.pricing.intelligence import analyze_product
 
 router = APIRouter(tags=["catalog"])
 
@@ -77,11 +80,43 @@ async def list_variants(product_id: UUID) -> list[VariantResponse]:
     return [_variant_response(variant) for variant in variants]
 
 
+@router.get("/products/{product_id}/intelligence", response_model=ProductIntelligenceResponse)
+async def get_product_intelligence(product_id: UUID) -> ProductIntelligenceResponse:
+    product = await catalog_q.get_product(product_id)
+    if product is None:
+        raise HTTPException(status_code=404, detail="product not found")
+    variants = await catalog_q.list_variants_for_product(product_id)
+    snapshots = await offers_q.list_latest_snapshots_for_product(product_id)
+    generated_at = datetime.now(UTC)
+    freshness_hours = get_settings().comparison_max_age_hours
+    result = analyze_product(
+        product_id,
+        variants,
+        snapshots,
+        observed_after=generated_at - timedelta(hours=freshness_hours),
+    )
+    return ProductIntelligenceResponse.from_result(
+        result,
+        generated_at=generated_at,
+        freshness_window_hours=freshness_hours,
+    )
+
+
 @router.get("/variants/{variant_id}/comparison", response_model=ComparisonResponse)
 async def get_comparison(variant_id: UUID) -> ComparisonResponse:
     variant = await catalog_q.get_variant(variant_id)
     if variant is None:
         raise HTTPException(status_code=404, detail="variant not found")
     snapshots = await offers_q.list_latest_snapshots_for_variant(variant_id)
-    result = compare_variant(variant_id, snapshots)
-    return ComparisonResponse.from_result(result, generated_at=datetime.now(UTC))
+    generated_at = datetime.now(UTC)
+    freshness_hours = get_settings().comparison_max_age_hours
+    result = compare_variant(
+        variant_id,
+        snapshots,
+        observed_after=generated_at - timedelta(hours=freshness_hours),
+    )
+    return ComparisonResponse.from_result(
+        result,
+        generated_at=generated_at,
+        freshness_window_hours=freshness_hours,
+    )
