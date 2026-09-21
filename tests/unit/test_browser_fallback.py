@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import pytest
 from scrapy.http import Request, Response, TextResponse
 
+from pricing_intel.collection import settings
 from pricing_intel.collection.browser import (
     browser_request_meta,
     has_browser_fallback,
@@ -98,13 +99,16 @@ def test_browser_metadata_is_explicit_and_bounded() -> None:
     assert meta["playwright"] is True
     assert meta["playwright_include_page"] is False
     assert meta["browser_allowed_hosts"] == ("www.amazon.com.br",)
+    # No user_agent key: Playwright's own Chromium build must stay the single
+    # source of truth for UA/Sec-CH-UA/navigator.userAgentData, or the three
+    # disagree with each other — a stronger bot signal than any of them being
+    # merely non-default.
     assert meta["playwright_context_kwargs"] == {
         "accept_downloads": False,
         "java_script_enabled": True,
         "locale": "pt-BR",
         "service_workers": "block",
         "timezone_id": "America/Sao_Paulo",
-        "user_agent": "pricing-intel-lab-bot/0.1 (+local pricing intelligence portfolio project)",
     }
     assert has_browser_fallback("amazon") is True
     assert has_browser_fallback("kabum") is True
@@ -162,6 +166,78 @@ async def test_access_control_error_does_not_trigger_browser_fallback() -> None:
     requests = [request async for request in spider.start()]
 
     assert requests[0].errback is None
+
+
+def _blocked_response(status: int, url: str) -> TextResponse:
+    request = Request(url)
+    return TextResponse(
+        url=request.url,
+        request=request,
+        status=status,
+        body=b"<html>access denied</html>",
+        encoding="utf-8",
+    )
+
+
+@pytest.mark.parametrize("status", [401, 403, 429])
+def test_amazon_blocked_product_page_does_not_escalate_to_browser(status: int) -> None:
+    # Scrapy's HttpErrorMiddleware already keeps non-2xx responses away from
+    # parse_product in production; this is the defense-in-depth check for if
+    # that middleware were ever reconfigured (HTTPERROR_ALLOW_ALL and friends
+    # — see test_settings_never_allow_error_responses_to_reach_spiders below).
+    spider = _spider()
+    response = _blocked_response(status, "https://www.amazon.com.br/example/dp/B0GQW2J4SK")
+
+    assert list(spider.parse_product(response)) == []
+
+
+@pytest.mark.parametrize("status", [401, 403, 429])
+def test_carrefour_blocked_product_page_does_not_escalate_to_browser(status: int) -> None:
+    spider = CarrefourSpider(
+        source_id="00000000-0000-0000-0000-000000000001",
+        run_id="00000000-0000-0000-0000-000000000002",
+        base_url="https://www.carrefour.com.br/",
+        product_name="Apple iPhone 17",
+        product_model="iphone_17",
+        storages="256",
+    )
+    response = _blocked_response(status, "https://www.carrefour.com.br/produto/example")
+
+    assert list(spider.parse_product(response)) == []
+
+
+@pytest.mark.parametrize("status", [401, 403, 429])
+def test_americanas_blocked_product_page_does_not_escalate_to_browser(status: int) -> None:
+    spider = AmericanasSpider(
+        source_id="00000000-0000-0000-0000-000000000001",
+        run_id="00000000-0000-0000-0000-000000000002",
+        base_url="https://www.americanas.com.br/",
+        product_name="Apple iPhone 17",
+        product_model="iphone_17",
+        storages="256",
+    )
+    response = _blocked_response(status, "https://www.americanas.com.br/produto/example/p")
+
+    assert list(spider.parse_product(response)) == []
+
+
+@pytest.mark.parametrize("status", [401, 403, 429])
+def test_kabum_blocked_search_does_not_escalate_to_browser(status: int) -> None:
+    spider = _kabum_spider()
+    response = _blocked_response(
+        status, "https://www.kabum.com.br/busca/apple-iphone-17-pro-max-512gb"
+    )
+
+    assert list(spider.parse_search(response, storage_gb="512")) == []
+
+
+def test_settings_never_allow_error_responses_to_reach_spiders() -> None:
+    # The defense-in-depth checks above only hold in production because
+    # Scrapy's HttpErrorMiddleware keeps non-2xx responses from ever reaching
+    # a parse_*/parse_search callback. If either of these settings changed,
+    # that guarantee would silently disappear.
+    assert getattr(settings, "HTTPERROR_ALLOW_ALL", False) is False
+    assert not getattr(settings, "HTTPERROR_ALLOWED_CODES", ())
 
 
 def test_amazon_http_success_does_not_schedule_browser() -> None:

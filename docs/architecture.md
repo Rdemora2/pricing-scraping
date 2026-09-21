@@ -134,10 +134,12 @@ ofertas agregadas por página, limitando também a multiplicação de evidência
 laboratório opta explicitamente por HTTP e rede privada. CAPTCHA, login e bloqueios
 não são contornados.
 
-O perfil HTTP mantém identidade automatizada declarada e adiciona apenas
-negociação estável de representação: HTML/XML, preferência `pt-BR` e revalidação
-de cache. Cabeçalhos de fingerprint (`Sec-CH-UA`), cookies de usuário e um
-user-agent falso de Chrome não fazem parte do coletor.
+O perfil HTTP negocia representação como um Chrome/Windows atual: user-agent,
+`Sec-CH-UA`/`Sec-Fetch-*` e `Accept-Language` priorizando `pt-BR` — decisão
+registrada em [`decisions/0001`](ai/decisions/0001-browser-realistic-http-profile.md)
+após reversão do perfil transparente anterior (INC-07B). Cookie de sessão,
+autenticação e resolução de CAPTCHA continuam fora do coletor; um bloqueio
+(401/403/429/`robots.txt`) nunca aciona o fallback de navegador — ver abaixo.
 
 O browser é opt-in por request e roda com um único contexto e uma página por
 worker. Sua política própria bloqueia recursos visuais e qualquer subrequest fora

@@ -2,10 +2,10 @@
 
 ## Estado atual
 
-O roadmap local chegou ao `INC-10`, atualmente no branch
-`feature/inc-10-pricing-experience`. A fonte normativa de estados e evidências é
-`docs/ai/delivery/`; branches históricas citadas nas evidências não representam o
-head atual.
+O roadmap local chegou ao `INC-11`, atualmente no branch
+`feature/inc-11-browser-realistic-http-profile`. A fonte normativa de estados e
+evidências é `docs/ai/delivery/`; branches históricas citadas nas evidências não
+representam o head atual.
 
 ### Incremento 1 — laboratório ponta a ponta
 
@@ -97,7 +97,8 @@ Entregue localmente:
 
 - inteligência consolidada por aparelho, armazenamento e cor, com suficiência
   de amostra explícita;
-- perfil HTTP transparente, sem fingerprint falso de navegador;
+- perfil HTTP transparente, sem fingerprint falso de navegador (revertido no
+  `INC-11`, ver abaixo);
 - preço estritamente positivo em domínio, extratores e banco;
 - runtimes Docker separados para API, worker com Chromium e testes;
 - catálogo tipado com 17 aparelhos, 221 variantes de mercado e referência
@@ -118,6 +119,29 @@ viram evidência da execução.
 No frontend, a antiga grade plana de combinações dá lugar a duas etapas —
 armazenamento e cor — com cobertura e amostra visíveis antes da comparação. A
 inteligência consolidada permanece disponível abaixo da decisão principal.
+
+### Incremento 11 — perfil HTTP realista de navegador
+
+Decisão de negócio explícita (registrada em
+[`docs/ai/decisions/0001-browser-realistic-http-profile.md`](../docs/ai/decisions/0001-browser-realistic-http-profile.md))
+reverte o perfil "bot declarado" do INC-07B para reduzir falsos bloqueios por
+sniffing simples de User-Agent/headers:
+
+- `USER_AGENT` e `Sec-CH-UA`/`Sec-Fetch-*` passam a negociar como um Chrome/
+  Windows atual, com Client Hints consistentes entre si;
+- `Retry-After` em HTTP 429 passa a ser respeitado antes do retry (novo
+  `RetryAfterMiddleware`), com teto e jitter — reduz a chance de escalar um
+  rate-limit temporário para bloqueio permanente;
+- **inalterado, por decisão explícita**: `robots.txt` continua obedecido, 401/
+  403/429/bloqueio de robots continuam sem escalar para o fallback Chromium,
+  e nenhum CAPTCHA, autenticação, fingerprint TLS/JA3 ou rotação de proxy/IP
+  foi adicionado — ver a seção "Fora de escopo" da ADR.
+
+Efeito esperado é limitado: fontes bloqueadas por `robots.txt` (Carrefour,
+Fast Shop, Bondfaro) ou por WAF com fingerprint TLS/comportamental (a causa
+mais provável dos HTTP 403 em iPlace, Casas Bahia, Ponto, Mercado Livre) não
+mudam de estado só com esta entrega — permanecem candidatas. A ADR recomenda
+priorizar integração oficial (ex.: API do Mercado Livre) para essas fontes.
 
 ## Gates permanentes
 

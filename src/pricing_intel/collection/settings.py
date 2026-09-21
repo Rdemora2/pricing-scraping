@@ -4,7 +4,7 @@ Every politeness/robustness knob a scraping-focused review would look
 for is set explicitly here rather than left at Scrapy's defaults.
 """
 
-from pricing_intel.collection.browser import DECLARED_USER_AGENT
+from pricing_intel.collection.browser import BROWSER_USER_AGENT, CHROME_MAJOR_VERSION
 from pricing_intel.config import get_settings
 
 _settings = get_settings()
@@ -14,11 +14,31 @@ BOT_NAME = "pricing_intel_collector"
 SPIDER_MODULES = ["pricing_intel.collection.spiders"]
 NEWSPIDER_MODULE = "pricing_intel.collection.spiders"
 
-USER_AGENT = DECLARED_USER_AGENT
+# Browser-realistic representation (decisions/0001): headers negotiate the
+# same way current desktop Chrome on Windows would, including the low-entropy
+# Client Hints Chrome sends unprompted. Accept-Encoding is intentionally left
+# to Scrapy's HttpCompressionMiddleware, which only advertises codecs this
+# process can actually decode.
+USER_AGENT = BROWSER_USER_AGENT
 DEFAULT_REQUEST_HEADERS = {
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.5",
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;q=0.9,"
+        "image/avif,image/webp,image/apng,*/*;q=0.8"
+    ),
+    "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
     "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-CH-UA": (
+        f'"Chromium";v="{CHROME_MAJOR_VERSION}", "Not_A Brand";v="24", '
+        f'"Google Chrome";v="{CHROME_MAJOR_VERSION}"'
+    ),
+    "Sec-CH-UA-Mobile": "?0",
+    "Sec-CH-UA-Platform": '"Windows"',
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
 }
 
 # Ethical/responsible-scraping defaults (brief section 9): obey robots.txt,
@@ -35,12 +55,23 @@ REDIRECT_MAX_TIMES = 3
 RETRY_TIMES = 3
 RETRY_HTTP_CODES = [500, 502, 503, 504, 429]
 
+# Hard wall-clock ceiling per crawl. RetryAfterMiddleware lets a target host
+# dictate up to MAX_DELAY_SECONDS of wait per retried request; without this,
+# a host that keeps answering 429 with a large Retry-After could stall a
+# single crawl — and, since the worker runs one collection job at a time
+# (compose.yaml), the whole queue — far longer than any legitimate multi-page
+# crawl needs.
+CLOSESPIDER_TIMEOUT = 300
+
 ITEM_PIPELINES = {
     "pricing_intel.collection.pipelines.PostgresPipeline": 300,
 }
 
 DOWNLOADER_MIDDLEWARES = {
     "pricing_intel.collection.network_policy.OutboundPolicyMiddleware": 50,
+    # Priority above RetryMiddleware (550) so it inspects the 429 response and
+    # annotates the request before RetryMiddleware clones it for the retry.
+    "pricing_intel.collection.retry_policy.RetryAfterMiddleware": 560,
 }
 
 # Browser acquisition is opt-in through request metadata. Plain Scrapy requests
