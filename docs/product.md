@@ -22,13 +22,18 @@ comparação?" e "como armazenamento e cor alteram o preço observado deste mode
 - catálogo tipado com 17 aparelhos e 221 variantes de mercado: linhas iPhone
   16/17/18 Pro e Air, Galaxy S25/S26 e Motorola Edge 70 Pro, cada família com
   referência oficial explícita;
-- adaptadores reais para Fast Shop, Samsung Shop, KaBuM!, Zoom, 2aFinder,
-  Buscapé, Amazon, Americanas e Carrefour, com evidência, vendedor efetivo e
-  atualização manual;
+- coletores reais para Zoom, Buscapé, KaBuM!, Americanas, Carrefour e Samsung
+  Shop, configurados pela raiz
+  da fonte e orientados por aparelho/capacidade, com descoberta limitada de
+  páginas, evidência, vendedor efetivo e atualização manual;
+- extratores dedicados também existentes para Fast Shop, 2aFinder e Amazon,
+  mantidos candidatos enquanto o fluxo completo não produz evidência permitida;
 - integrações diretas iPlace e Magalu mantidas como candidatas enquanto o acesso
   automatizado declarado responder HTTP 403; ofertas desses vendedores ainda
   podem ser comprovadas por marketplaces públicos;
 - radar opcional de referências na web, com confiança e revisão antes de coleta;
+- portfólio governado de 33 fontes, separando coletores ativos, raízes candidatas,
+  referências oficiais, APIs pendentes, operadoras e sinais promocionais;
 - duas fontes HTTP com markup diferente, paginação e múltiplos vendedores;
 - coleta manual assíncrona e idempotente;
 - extração JSON-LD validada e evidência com hash/versão do extrator;
@@ -42,13 +47,12 @@ comparação?" e "como armazenamento e cor alteram o preço observado deste mode
 - landing page própria e workspace com visão geral, aparelhos, fontes, radar,
   cadastro de equipamento e cadastro de referência.
 
-Catálogo e cobertura são contratos diferentes. Catorze famílias das linhas
-iPhone 16, iPhone Air, iPhone 17, Galaxy S25 e Galaxy S26 possuem ao menos um
-coletor real homologado. Isso não significa que todas as 221 variantes tenham
-oferta ativa: cada observação continua exigindo modelo, armazenamento e cor
-exatos. iPhone 18 Pro/Pro Max e Motorola Edge 70 Pro permanecem prontos para
-monitoramento e qualificação, sem preço, até que uma matriz brasileira pública
-e estável possa ser revisada e habilitada.
+Catálogo e cobertura são contratos diferentes. Os seis coletores homologados
+podem pesquisar todos os 17 aparelhos sem que novas URLs sejam cadastradas.
+Isso não significa que todas as 221 variantes tenham oferta ativa: cada
+observação continua exigindo modelo, armazenamento e cor exatos. iPhone 18 Pro,
+iPhone 18 Pro Max e Motorola Edge 70 Pro permanecem prontos para busca, mas sem
+preço quando não existe uma matriz brasileira pública e estável.
 
 ## População comparável
 
@@ -91,17 +95,15 @@ capacidade menor. O painel expõe método, amostra e estados `sem dados`, `limit
 
 ## Meta de amostragem
 
-O piso desejado é 6–8 valores de varejistas confiáveis por aparelho/variante; mais
-é melhor. Esse número é meta operacional, não seed ou dado decorativo. A coleta
-real de referência de `2026-09-20` observou `9/11/9/5/6/6` varejistas nas
-variantes prioritárias de iPhone 17/Pro/Pro Max e Galaxy S26/S26+/Ultra. A UX
-explicita a diferença entre cobertura atual e meta; o S26 base continua em cinco
-na configuração Dourado, exclusiva da loja oficial segundo a Samsung, porque
-aliases do fabricante são consolidados e variantes incompatíveis não são
-misturadas para completar artificialmente o número.
-
-Para o caso focal do iPhone 17 256 GB Preto, a coleta de referência do mesmo dia
-atingiu `6` varejistas em `6` canais, incluindo Amazon, Carrefour e Americanas.
+O piso desejado é 6–8 valores de varejistas confiáveis por aparelho/variante;
+mais é melhor. Esse número é meta operacional, não seed ou dado decorativo. Na
+execução local de `2026-09-21`, as buscas por fonte do iPhone 17 Pro Max
+produziram runs de referência em Zoom, Buscapé, KaBuM!, Americanas e Carrefour
+e, após matching e deduplicação, `54` ofertas de `17` varejistas. As 12
+combinações canônicas de armazenamento e cor ficaram
+observadas; a diversidade por combinação exata, porém, variou de `3` a `11`
+varejistas. A UX explicita essa diferença e não mistura capacidades, cores ou
+aliases para completar artificialmente a meta.
 
 ## Fora do escopo atual
 

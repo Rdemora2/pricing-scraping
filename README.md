@@ -32,8 +32,9 @@ Acesse:
 
 Na interface, entre em **Inteligência de mercado**, escolha aparelho, capacidade
 e cor e use **Atualizar mercado**. A API cria uma execução por fonte aplicável; o
-worker coleta as páginas revisadas e o painel atualiza varejistas distintos,
-canais de evidência, faixa de preço e exclusões justificadas. A leitura executiva
+worker pesquisa o aparelho dentro de cada fonte, descobre páginas compatíveis e
+o painel atualiza varejistas distintos, canais de evidência, faixa de preço e
+exclusões justificadas. A leitura executiva
 do aparelho consolida as variantes e compara armazenamentos, custo por GB e o
 efeito relativo das cores sem misturar capacidades diferentes.
 
@@ -63,8 +64,11 @@ comercial esteja conectada:
    `Offer`, preservando SKU, vendedor, disponibilidade e condição.
 3. **HTML/DOM**: seletores específicos completam ou substituem campos que não
    estão estruturados, como o buy box visível ou o preço Pix.
-4. **Chromium headless**: somente Amazon, Americanas e Carrefour estão
-   autorizadas a usá-lo quando a resposta HTTP não contém evidência suficiente.
+4. **Chromium headless**: fica restrito a adaptadores revisados. Americanas e
+   Carrefour podem usá-lo quando uma página permitida não contém evidência
+   suficiente; a busca da KaBuM! pode usá-lo quando a grade de resultados
+   depende de JavaScript. O adapter Amazon existe, mas permanece candidato após
+   a homologação receber HTTP 503 sem produzir observações.
 
 O fallback de navegador não resolve CAPTCHA, não autentica e não contorna HTTP
 403. Ele bloqueia imagens, mídia, fontes e hosts não revisados; sua origem fica
@@ -131,7 +135,7 @@ Variáveis principais:
 | Método | Rota | Finalidade |
 | --- | --- | --- |
 | `GET` | `/sources` | lista fontes habilitadas |
-| `POST` | `/sources/{source_id}/collect` | cria ou reutiliza uma coleta idempotente |
+| `POST` | `/sources/{source_id}/collect` | pesquisa o `product_id` informado na fonte e cria ou reutiliza uma coleta idempotente |
 | `GET` | `/runs/{run_id}` | acompanha estado e estatísticas |
 | `GET` | `/products` | lista produtos canônicos |
 | `GET` | `/products/{product_id}/variants` | lista variantes |
@@ -147,40 +151,41 @@ O seed contém 17 aparelhos de mercado e 221 variantes canônicas, com proveniê
 oficial versionada no código: linha iPhone 16, iPhone 17, iPhone Air e iPhone 18
 Pro; Galaxy S25 e S26; e Motorola Edge 70 Pro. O laboratório adiciona somente
 três variantes Nimbus isoladas. O cadastro amplo não é apresentado como cobertura
-de preço: coletores permanecem habilitados apenas para as páginas efetivamente
-revisadas. Há 51 fontes habilitadas no seed, duas delas reservadas ao laboratório.
-A normalização reconhece os 17 aparelhos de mercado e os coletores reais cobrem
-14 famílias comercialmente observáveis:
+de preço. O seed possui 33 definições de fonte: Zoom, Buscapé, KaBuM!,
+Americanas, Carrefour e Samsung Shop estão habilitadas como coletores de
+mercado; duas lojas sintéticas ficam isoladas no laboratório; as demais raízes
+são candidatas ou referências até que seu fluxo completo seja homologado.
 
-- Samsung Shop, com variantes estruturadas das linhas Galaxy S25 e S26;
-- Fast Shop, com páginas diretas da linha iPhone 17;
-- KaBuM!, incluindo identificação do vendedor quando a página é marketplace;
-- Zoom, como canal agregador para iPhone 16, iPhone Air, iPhone 17, Galaxy S25
-  e Galaxy S26, preservando o varejista efetivo de cada oferta;
-- 2aFinder, por documento Markdown público, com vendedor, canal, condição, frete,
-  variante, timestamp e identificador de oferta;
-- Buscapé, para as mesmas gerações Apple/Samsung homologadas, pela página
-  pública e pelo documento de ofertas que ela própria consome, sem seguir
-  redirecionamentos comerciais;
-- Amazon Brasil, pelo buy box visível da página de produto;
-- Americanas, preservando o vendedor efetivo publicado no marketplace;
-- Carrefour, preservando vendedor e preço à vista no Pix — inclusive ofertas
-  de MCS Variedades e Loja iPlace;
-- duas lojas sintéticas isoladas, usadas somente para regressão do pipeline.
+O coletor é configurado pela identidade e raiz da fonte, nunca por uma URL de
+produto. Ao receber o aparelho canônico, Zoom, Buscapé, KaBuM!, Americanas e
+Carrefour geram buscas por capacidade, filtram modelo/capacidade exatos e seguem
+um conjunto limitado de páginas descobertas. A Samsung Shop deriva a rota
+oficial a partir do modelo canônico e extrai o grupo público de variantes. A URL
+de produto passa a ser evidência da execução, não configuração permanente.
+Marketplaces e comparadores preservam o vendedor efetivo de cada oferta.
+
+O portfólio de qualificação inclui grandes redes nacionais, marketplaces,
+varejistas especializados, fabricantes, operadoras, comparadores e comunidades
+de promoção. Cadastro não significa integração: operadoras precisam separar
+aparelho avulso de preço vinculado a plano; Shopee e AliExpress exigem produto
+novo, estoque nacional, seller e garantia; Promobit e Pelando são sinais de
+oportunidade cujos cupons nunca viram preço-base silenciosamente.
+A decisão fonte a fonte, com run ou impedimento observado, está registrada em
+[`docs/source-qualification.md`](docs/source-qualification.md).
 
 A meta de produto é atingir **no mínimo 6–8 varejistas distintos por aparelho e
 variante**, e continuar crescendo além disso. A interface não transforma essa
 meta em dado: ela mostra a cobertura realmente coletada. Uma oferta repetida no
 site direto e em comparador conta uma vez; aliases conhecidos, como Magalu e
-Magazine Luiza, também são consolidados. Em uma coleta real de referência em
-`2026-09-20`, as variantes prioritárias observaram `9/11/9/5/6/6` varejistas
-para iPhone 17/Pro/Pro Max e Galaxy S26/S26+/Ultra, respectivamente. Cinco das
-seis famílias atingem o piso. Além dessa matriz, o iPhone 17 256 GB Preto abre
-como variante principal com `6` varejistas em `6` canais após a inclusão direta
-de Amazon, Americanas e Carrefour. O Galaxy S26 base Dourado permanece em cinco: a
-própria Samsung classifica Dourado/Prata como cores exclusivas da loja oficial, e
-a coleta pública atual não expõe um sexto vendedor novo, disponível e exato sem
-duplicar a Samsung ou misturar variante.
+Magazine Luiza, também são consolidados. Em uma execução local de referência em
+`2026-09-21`, as buscas de raiz de Zoom, Buscapé e KaBuM! produziram,
+respectivamente, `25`, `49` e `11` observações brutas para o iPhone 17 Pro Max;
+Americanas e Carrefour acrescentaram runs homologados com `6` e `3`
+observações. Após matching e deduplicação, a inteligência registrou `54` ofertas de `17`
+varejistas e cobertura `12/12`: as três cores canônicas de `256 GB`, `512 GB`,
+`1 TB` e `2 TB` passaram a ter evidência. A diversidade por configuração exata
+variou de `3` a `11` varejistas; portanto a meta de 6–8 ainda não é declarada
+como universalmente atingida.
 
 ## Inteligência por aparelho
 
@@ -223,22 +228,24 @@ preservar histórico de coletas.
   observada; a limitação externa de oferta está registrada em
   `docs/ai/delivery/evidence/INC-05.md`, e ampliar fontes diretas continua
   necessário para fechar o piso sem contar aliases ou misturar variantes;
-- iPlace e Magalu permanecem candidatos diretos porque suas páginas responderam
-  HTTP 403 ao user-agent declarado do coletor. Ofertas desses vendedores podem
-  aparecer quando Americanas ou Carrefour as publicam com variante e preço
-  verificáveis;
+- iPlace, Magalu, Casas Bahia, Ponto, Extra, Pichau, TerabyteShop, JáCotei e Vivo
+  permanecem candidatas após HTTP 403 na homologação local. Ofertas desses
+  vendedores podem aparecer em agregadores quando
+  variante, condição, seller e preço forem verificáveis;
 - Apple Brasil é referência canônica, não fonte automatizada; seus termos vedam
   automação da página;
-- iPhone 18 Pro/Pro Max e Motorola Edge 70 Pro permanecem sem coletor habilitado:
-  a consulta pública não apresentou uma matriz brasileira estável e ampla o
-  suficiente para homologação. O portal mantém esses aparelhos prontos para
-  monitoramento, sem simular preço ou cobertura;
-- as páginas agregadoras do Galaxy S25+ permanecem candidatas porque as ofertas
-  atuais omitem a cor no dado estruturado. A fonte direta Samsung Shop está
-  habilitada e mantém o modelo coletável sem relaxar o match de variante;
+- iPhone 18 Pro/Pro Max e Motorola Edge 70 Pro já podem ser pesquisados pelos
+  coletores genéricos, mas permanecem sem evidência suficiente para declarar
+  cobertura brasileira; o portal não simula preço quando a busca volta vazia;
+- ofertas do Galaxy S25+ que omitem a cor continuam excluídas pelo matching; a
+  busca mais ampla não relaxa identidade de variante para preencher cobertura;
 - Mercado Livre ainda exige homologação de sua integração oficial. Sem essa
   conexão, o sistema continua operando com os scrapers habilitados; Casas Bahia
   e Ponto permanecem candidatos a adaptadores diretos dedicados;
+- Amazon permanece candidata: o adapter de busca está coberto por testes, mas a
+  execução completa recebeu HTTP 503 e não produziu evidência. Bondfaro foi
+  rebaixado porque o `robots.txt` recusou a busca; Fast Shop também não autoriza
+  sua busca automatizada;
 - candidatos da busca ampla exigem revisão humana e adaptador dedicado antes de
   qualquer coleta;
 - requests HTTP declaram o coletor e negociam HTML em português com cabeçalhos

@@ -10,10 +10,8 @@ frontend e faz proxy same-origin para a API.
 Browser -> Nginx/React -> FastAPI -> PostgreSQL
                                \-> Procrastinate job
                                     -> Worker -> Scrapy subprocess
-                                                -> Fast Shop / Samsung Shop
-                                                -> KaBuM! / Zoom
-                                                -> 2aFinder / Buscapé
-                                                -> Amazon / Americanas / Carrefour
+                                                -> busca por fonte e aparelho
+                                                -> Zoom / Buscapé / KaBuM!
                                                 -> lab-store-a / lab-store-b
                                                 -> PostgreSQL
 ```
@@ -37,24 +35,30 @@ RabbitMQ e serviços cloud não são necessários no volume do MVP.
 
 ## Fluxo de dados
 
-1. `POST /sources/{id}/collect` verifica que a fonte está habilitada.
-2. Uma chave `source + minuto` converge cliques repetidos no mesmo run.
+1. `POST /sources/{id}/collect` recebe `product_id` e verifica que produto e
+   fonte estão habilitados.
+2. Uma chave `source + product + minuto` converge cliques repetidos no mesmo run.
 3. O job persistido move o run de `pending` para `running`.
-4. A arquitetura reserva um ponto de extensão para API oficial, mas nenhuma API
-   comercial está credenciada nesta entrega; os adapters atuais iniciam por HTTP
-   e visitam somente a página revisada e limitada daquela fonte.
-5. A coleta HTTP prioriza JSON-LD e usa seletores DOM específicos para campos
-   ausentes. Amazon, Americanas e Carrefour podem repetir essa extração em
-   Chromium headless como último recurso quando a primeira resposta for
-   insuficiente; a evidência identifica esse fallback no extrator.
-6. O extrator separa vendedor, oferta, termos e variante; marketplaces preservam
+4. O worker resolve nome, modelo e capacidades do catálogo. O adapter constrói
+   uma busca interna para cada capacidade na raiz da fonte; URLs de produto não
+   fazem parte da configuração persistida do coletor.
+5. O resultado da busca só é seguido quando pertence ao host permitido, contém
+   todos os tokens do modelo e a capacidade exata. Cada capacidade segue no
+   máximo três páginas, limitando amplitude e duplicação.
+6. A coleta das páginas descobertas prioriza JSON-LD e usa seletores DOM
+   específicos para campos ausentes. A busca da KaBuM! pode repetir a descoberta
+   em Chromium headless quando a resposta permitida depende de JavaScript;
+   Americanas e Carrefour preservam o fallback de página já implementado. O
+   adapter Amazon permanece disponível, mas não é executável enquanto a
+   homologação pública responder HTTP 503. A evidência identifica o extrator.
+7. O extrator separa vendedor, oferta, termos e variante; marketplaces preservam
    o vendedor efetivo.
-7. A observação e sua evidência são persistidas; replay do mesmo run não duplica
+8. A observação e sua evidência são persistidas; replay do mesmo run não duplica
    a observação.
-8. O run termina em `succeeded`, `partial` ou `failed`.
-9. A consulta usa somente a observação mais recente por oferta ativa e uma
+9. O run termina em `succeeded`, `partial` ou `failed`.
+10. A consulta usa somente a observação mais recente por oferta ativa e uma
    observação por varejista; evidência direta precede uma cópia agregada.
-10. A inteligência de aparelho carrega todas as ofertas atuais em uma consulta,
+11. A inteligência de aparelho carrega todas as ofertas atuais em uma consulta,
     calcula cada variante isoladamente e somente então agrega dimensões.
 
 A descoberta ampla é um fluxo paralelo: a API consulta um provedor oficial de
@@ -64,6 +68,8 @@ Nenhum candidato é promovido automaticamente a `source`.
 ## Persistência e invariantes
 
 - dinheiro: inteiro em unidades mínimas + moeda ISO de três letras;
+- condição comercial: base do preço, parcelas, desconto, cupom e vínculo ficam
+  explícitos; preço condicionado não entra silenciosamente como preço-base;
 - observação: única por `(offer_id, collection_run_id)`;
 - oferta: única por `(source_id, external_listing_id)`;
 - página descoberta: única por `(source_id, canonical_url)`;
@@ -74,12 +80,24 @@ Nenhum candidato é promovido automaticamente a `source`.
 
 ## Estratégia de fontes
 
-- **direta**: Fast Shop, Samsung Shop, KaBuM!, Amazon, Americanas e Carrefour
-  fornecem a página que sustenta o preço; têm precedência na deduplicação. Em
-  marketplaces, o canal e o vendedor efetivo permanecem identidades separadas;
-- **agregadora**: Zoom, 2aFinder e Buscapé adicionam amplitude, mas cada oferta é
-  atribuída ao vendedor publicado e não ao comparador. Lead/afiliado nunca é
-  seguido; a evidência permanece na página ou documento público de comparação;
+- **coletor homologado**: Zoom, Buscapé, KaBuM!, Americanas e Carrefour são
+  registrados uma vez pela raiz e pesquisam o aparelho selecionado. Samsung
+  Shop resolve a rota pública a partir do modelo canônico. A URL de produto
+  descoberta é evidência efêmera da execução, não uma nova fonte;
+- **direta**: a KaBuM! fornece a página que sustenta o preço e tem precedência na
+  deduplicação. Em marketplaces, canal e vendedor efetivo permanecem identidades
+  separadas;
+- **agregadora**: Zoom e Buscapé adicionam amplitude, mas cada oferta é atribuída
+  ao vendedor publicado e não ao comparador. Lead/afiliado nunca é seguido; a
+  evidência permanece na página ou documento público de comparação;
+- **raiz candidata**: grandes redes, marketplaces, varejistas especializados,
+  operadoras e comparadores permanecem cadastrados sem execução até que sua
+  busca interna e semântica comercial sejam homologadas. Páginas históricas
+  específicas são desabilitadas pelo seed;
+- **sinal promocional**: Promobit e Pelando podem descobrir oportunidades, mas
+  cupom, Pix, clube e validade precisam permanecer condições explícitas;
+- **preço condicionado**: Claro, Vivo e TIM exigem identificar aparelho avulso
+  e excluir preço que dependa de plano, portabilidade ou fidelização;
 - **referência**: Apple Brasil, Samsung Brasil e Motorola Brasil sustentam
   catálogo/especificações, sem serem automaticamente tratadas como preço
   coletável;

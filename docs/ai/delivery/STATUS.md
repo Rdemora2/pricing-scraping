@@ -1,17 +1,18 @@
 # Estado de execução
 
-**Atualizado em:** `2026-09-20`
+**Atualizado em:** `2026-09-21`
 **Estado global:** `LOCAL_VERIFIED_WITH_EXTERNAL_GATE`
-**Unidade ativa:** `INC-09` — expansão local validada; cobertura externa e revisão pendentes
+**Unidade ativa:** `INC-10` — busca por fonte e nova experiência localmente validadas; revisão independente pendente
 
 O roadmap conclui o laboratório e avança o portal local de inteligência de
 preços com fontes reais. A entrega permanece limitada ao ambiente local; não
 inclui deploy ou cloud.
 
-Código, 85 testes, análise estática, pacote, imagens, coleta real, Chromium no
-worker e browser desktop/mobile estão verdes. API, worker e frontend foram
-reconstruídos; smokes one-shot provaram o runtime headless e a coleta Amazon com
-proveniência de fallback.
+No snapshot atual, 135 testes locais passaram e dois testes de integração foram
+corretamente ignorados sem `API_BASE_URL`; os mesmos dois passaram no container
+dedicado. Ruff, formatação, `ty`, pacote Python, frontend, imagens Docker, health,
+coleta real e navegação desktop/mobile estão verdes. API, worker e frontend foram
+reconstruídos e executados no Compose local.
 
 O `INC-04` inclui 76 variantes Apple/Samsung, Fast Shop, Samsung Shop, KaBuM! e
 Zoom, descoberta ampla governada e portal completo. O `INC-05` adiciona 2aFinder
@@ -61,6 +62,23 @@ Pro/Pro Max e Motorola Edge 70 Pro ainda não apresentam matriz pública brasile
 estável e ampla. A unidade permanece `BLOCKED_EXTERNAL`: não seria correto
 declarar cobertura de 6–8 varejistas por variante nesses casos, e a revisão
 independente do stack anterior continua pendente.
+
+O `INC-10` corrige o vínculo conceitual entre fonte e página. Zoom, Buscapé,
+KaBuM!, Americanas, Carrefour e Samsung Shop ficam cadastrados uma única vez
+pelas respectivas raízes; a API
+exige o aparelho, o worker resolve o catálogo e cada spider pesquisa as
+capacidades dentro da fonte antes de seguir páginas exatas do mesmo host. URLs
+específicas passam a ser evidência da execução. No caso focal iPhone 17 Pro Max,
+as execuções de Zoom/Buscapé/KaBuM!/Americanas/Carrefour registraram
+`25/49/11/6/3` observações brutas e a leitura atual chegou a `12/12`
+configurações, `54` ofertas deduplicadas e `17` varejistas. Samsung Shop também
+concluiu com `6` observações para o Galaxy S26 Ultra. O registro governado mapeia
+33 fontes; somente as seis com fluxo comprovado ficam ativas, enquanto as demais exibem seu estado de
+qualificação. A UX troca a lista plana por armazenamento e cor em duas etapas;
+512 GB, 1 TB e
+2 TB foram exercitados em browser, sem erro de página, overflow mobile ou
+violação WCAG automatizada. A diversidade exata ainda varia de `3` a `11`
+varejistas e a revisão independente permanece como gate externo.
 
 O reviewer independente aprovou localmente o ciclo 2 do INC-05 no fingerprint
 `fadb3ec6d99b17b80386d1296655a3ef65be8f3523e59bd2760133dcb64d0b75`, sem

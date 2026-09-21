@@ -2,8 +2,8 @@
 
 ## Estado atual
 
-O roadmap local chegou ao `INC-08`, atualmente no branch
-`feature/inc-08-quality-hardening`. A fonte normativa de estados e evidências é
+O roadmap local chegou ao `INC-10`, atualmente no branch
+`feature/inc-10-pricing-experience`. A fonte normativa de estados e evidências é
 `docs/ai/delivery/`; branches históricas citadas nas evidências não representam o
 head atual.
 
@@ -75,10 +75,14 @@ Entregue:
 
 Próximos passos:
 
-- superar o bloqueio externo de oferta do Galaxy S26 Dourado, hoje em cinco
-  vendedores exatos, sem duplicar a Samsung ou misturar variantes;
-- revisar acesso direto futuro para Magalu/iPlace e adaptadores para Casas Bahia,
-  Ponto e integrações oficiais disponíveis;
+- revalidar Amazon quando deixar de responder HTTP 503 e homologar as demais
+  raízes permitidas; Americanas, Carrefour e Samsung Shop já fecharam o fluxo
+  completo sem reintroduzir URLs fixas de produto;
+- elevar de 3–11 para pelo menos 6–8 varejistas cada configuração prioritária,
+  sem duplicar aliases ou misturar variantes;
+- evoluir a observação para duas cotações monetárias explícitas — à vista/Pix e
+  parcelada —; hoje há um único preço comparável acompanhado de base,
+  parcelamento, cupom e indicador de condição;
 - criar visão de cobertura por família, variante e fonte, com SLO de frescor;
 - adicionar fixtures capturadas/sanitizadas por adaptador para regressão de markup;
 - série temporal e mudança efetiva versus verificação recente;
@@ -98,6 +102,19 @@ Entregue localmente:
 - catálogo tipado com 17 aparelhos, 221 variantes de mercado e referência
   oficial por família;
 - estados vazios honestos para aparelhos ainda sem coletor homologado.
+
+### Incrementos 9 e 10 — catálogo amplo e busca orientada pelo aparelho
+
+O `INC-09` ampliou a normalização para o catálogo completo, mas revelou uma
+limitação estrutural: cada fonte ainda era cadastrada como página de produto. O
+`INC-10` substitui esse vínculo por coletores de raiz. A API passa o aparelho
+selecionado ao worker; Zoom, Buscapé, KaBuM!, Americanas e Carrefour pesquisam
+cada capacidade dentro da própria fonte, enquanto Samsung Shop resolve o modelo
+canônico no catálogo oficial. As páginas encontradas viram evidência da execução.
+
+No frontend, a antiga grade plana de combinações dá lugar a duas etapas —
+armazenamento e cor — com cobertura e amostra visíveis antes da comparação. A
+inteligência consolidada permanece disponível abaixo da decisão principal.
 
 ## Gates permanentes
 
