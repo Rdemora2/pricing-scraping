@@ -37,8 +37,12 @@ export const api = {
   getProductIntelligence: (productId: string) =>
     request<ProductIntelligence>(`/products/${productId}/intelligence`),
   getComparison: (variantId: string) => request<Comparison>(`/variants/${variantId}/comparison`),
-  collectSource: (sourceId: string) =>
-    request<CollectionRun>(`/sources/${sourceId}/collect`, { method: "POST" }),
+  collectSource: (sourceId: string, productId: string) =>
+    request<CollectionRun>(`/sources/${sourceId}/collect`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ product_id: productId }),
+    }),
   getRun: (runId: string) => request<CollectionRun>(`/runs/${runId}`),
   createProduct: (payload: ProductCreatePayload) =>
     request<ProductDetail>("/products", {

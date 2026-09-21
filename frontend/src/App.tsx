@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { api } from "./api";
 import { ProductIntelligencePanel } from "./components/ProductIntelligencePanel";
+import { VariantNavigator } from "./components/VariantNavigator";
 import { formatDate, formatMoney } from "./formatters";
 import type {
   CollectionRun,
@@ -87,38 +88,80 @@ function runLabel(run: CollectionRun | undefined): string {
 
 function sourceState(source: Source): { label: string; tone: string } {
   if (source.status === "enabled") return { label: "Integrada", tone: "ready" };
-  if (["iplace", "magalu"].includes(source.adapter_name))
-    return { label: "Acesso direto bloqueado", tone: "blocked" };
   if (source.adapter_name === "catalog_reference")
     return { label: "Referência oficial", tone: "reference" };
   if (source.adapter_name.endsWith("_api")) return { label: "API oficial pendente", tone: "api" };
+  if (source.adapter_name === "conditional_price_candidate")
+    return { label: "Preço condicionado", tone: "candidate" };
+  if (source.adapter_name === "promotion_community_candidate")
+    return { label: "Sinal promocional", tone: "candidate" };
   return { label: "Em qualificação", tone: "candidate" };
 }
 
 const browserFallbackAdapters = new Set(["amazon", "americanas", "carrefour"]);
+const accessBlockedSources = new Set([
+  "iPlace",
+  "Magalu",
+  "Casas Bahia",
+  "Ponto",
+  "Extra",
+  "Pichau",
+  "TerabyteShop",
+  "JáCotei",
+  "Vivo Loja Online",
+]);
 
 function enabledSourceDescription(source: Source): string {
+  if (["zoom", "buscape", "kabum", "bondfaro"].includes(source.adapter_name)) {
+    return "Busca interna orientada pelo aparelho e por capacidade; páginas são descobertas a cada coleta.";
+  }
   if (browserFallbackAdapters.has(source.adapter_name)) {
     return "HTTP estruturado primeiro; Chromium headless somente se JSON-LD e DOM forem insuficientes.";
   }
   return "Coleta HTTP com JSON-LD prioritário, adapter dedicado e controles de rede.";
 }
 
+function candidateSourceDescription(source: Source): string {
+  if (accessBlockedSources.has(source.name)) {
+    return "A última homologação declarada recebeu HTTP 403; permanece sem execução e sem contorno de bloqueio.";
+  }
+  if (source.name === "Amazon Brasil") {
+    return "Busca e adapter implementados, mas a homologação final recebeu HTTP 503 e não persistiu ofertas.";
+  }
+  if (source.name === "Bondfaro") {
+    return "Adapter validado com fixture pública; a execução foi recusada pelo robots.txt da fonte.";
+  }
+  if (source.name === "Fast Shop") {
+    return "Produto estruturado mapeado, mas a política robots.txt não autoriza a busca automatizada.";
+  }
+  if (source.adapter_name === "conditional_price_candidate") {
+    return "Exige separar aparelho avulso de preço vinculado a plano, portabilidade ou fidelização.";
+  }
+  if (source.adapter_name === "promotion_community_candidate") {
+    return "Sinal de oportunidade: cupom e condição precisam ser preservados e não viram preço-base automaticamente.";
+  }
+  if (source.adapter_name === "price_comparison_candidate") {
+    return "Comparador mapeado; exige homologar busca, vendedor efetivo e deduplicação de ofertas.";
+  }
+  if (["shopee", "aliexpress_br"].includes(source.adapter_name)) {
+    return "Marketplace mapeado; exige validar produto novo, estoque nacional, seller e garantia antes da coleta.";
+  }
+  return "Domínio reconhecido aguardando avaliação de acesso, busca interna e adapter.";
+}
+
 function sourceAppliesToProduct(source: Source, product: Product | null): boolean {
   if (!product) return false;
-  if (source.adapter_name === "zoom") return source.name === `Zoom — ${product.name}`;
+  if (["zoom", "bondfaro"].includes(source.adapter_name)) return true;
   if (source.adapter_name === "two_a_finder") return source.name === `2aFinder — ${product.name}`;
-  if (source.adapter_name === "buscape") return source.name === `Buscapé — ${product.name}`;
-  if (source.adapter_name === "samsung_shop")
-    return source.name === `Samsung Shop — ${product.name.replace("Samsung ", "")}`;
+  if (source.adapter_name === "buscape") return true;
+  if (source.adapter_name === "samsung_shop") return product.brand === "Samsung";
   if (source.adapter_name === "iplace") return product.name === "Apple iPhone 17";
-  if (["amazon", "americanas", "carrefour"].includes(source.adapter_name))
-    return product.name === "Apple iPhone 17";
+  if (["amazon", "americanas", "carrefour"].includes(source.adapter_name)) return true;
   if (source.adapter_name === "fast_shop")
     return source.name === "Fast Shop"
       ? product.name === "Apple iPhone 17"
       : source.name === `Fast Shop — ${product.name}`;
-  if (source.adapter_name === "kabum") return source.name === `KaBuM! — ${product.name}`;
+  if (source.adapter_name === "kabum") return true;
   return true;
 }
 
@@ -297,6 +340,10 @@ function DiscoveryPanel({ candidates, query, busy, setQuery, onSearch }: Discove
               {busy ? "Varrendo…" : "Varrer a web"}
             </button>
           </div>
+          <p className="privacy-note" role="note">
+            A consulta é enviada ao provedor Brave Search. Não inclua dados pessoais ou
+            confidenciais; o sistema persiste apenas uma identificação genérica da busca.
+          </p>
         </form>
       </div>
       <div className="radar-stats">
@@ -363,6 +410,7 @@ export function App() {
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [comparison, setComparison] = useState<Comparison | null>(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
   const [intelligence, setIntelligence] = useState<ProductIntelligence | null>(null);
   const [runsBySource, setRunsBySource] = useState<Record<string, CollectionRun>>({});
   const [busySourceIds, setBusySourceIds] = useState<string[]>([]);
@@ -380,6 +428,7 @@ export function App() {
     colors: "Preto, Branco",
   });
   const [sourceForm, setSourceForm] = useState({ title: "", url: "" });
+  const comparisonRequestId = useRef(0);
 
   const selectedProduct = products.find((item) => item.id === selectedProductId) ?? null;
   const selectedVariant = variants.find((item) => item.id === selectedVariantId) ?? null;
@@ -407,7 +456,14 @@ export function App() {
   };
 
   const loadComparison = useCallback(async (variantId: string) => {
-    setComparison(await api.getComparison(variantId));
+    const requestId = ++comparisonRequestId.current;
+    setComparisonLoading(true);
+    try {
+      const result = await api.getComparison(variantId);
+      if (requestId === comparisonRequestId.current) setComparison(result);
+    } finally {
+      if (requestId === comparisonRequestId.current) setComparisonLoading(false);
+    }
   }, []);
 
   const loadIntelligence = useCallback(async (productId: string) => {
@@ -463,7 +519,12 @@ export function App() {
   useEffect(() => {
     if (!selectedProductId) return;
     let active = true;
+    comparisonRequestId.current += 1;
+    setComparisonLoading(false);
     setIntelligence(null);
+    setVariants([]);
+    setSelectedVariantId(null);
+    setComparison(null);
     Promise.all([
       api.listVariants(selectedProductId),
       api.getProductIntelligence(selectedProductId),
@@ -474,7 +535,14 @@ export function App() {
         setIntelligence(productIntelligence);
         const product = products.find((item) => item.id === selectedProductId);
         const priority = product ? priorityVariantByProduct[product.name] : undefined;
+        const bestCoveredVariantId = [...productIntelligence.variant_analysis]
+          .filter((item) => item.offer_count > 0)
+          .sort(
+            (left, right) =>
+              right.retailer_count - left.retailer_count || right.offer_count - left.offer_count,
+          )[0]?.variant_id;
         const defaultVariant =
+          items.find((item) => item.id === bestCoveredVariantId) ??
           (priority
             ? items.find(
                 (item) =>
@@ -488,7 +556,6 @@ export function App() {
           items.find((item) => item.attributes.storage_gb === "256") ??
           items[0];
         setSelectedVariantId(defaultVariant?.id ?? null);
-        setComparison(null);
       })
       .catch((reason: unknown) => {
         if (active)
@@ -501,6 +568,7 @@ export function App() {
 
   useEffect(() => {
     if (!selectedVariantId) return;
+    setComparison(null);
     loadComparison(selectedVariantId).catch((reason: unknown) =>
       setError(reason instanceof Error ? reason.message : "Falha ao comparar ofertas"),
     );
@@ -519,9 +587,10 @@ export function App() {
   const collectSource = useCallback(
     async (sourceId: string) => {
       setError(null);
+      if (!selectedProductId) throw new Error("Selecione um aparelho antes de coletar");
       setBusySourceIds((current) => [...current, sourceId]);
       try {
-        const run = await api.collectSource(sourceId);
+        const run = await api.collectSource(sourceId, selectedProductId);
         setRunsBySource((existing) => ({ ...existing, [sourceId]: run }));
         const finalRun = await pollRun(run);
         if (!terminalStatuses.has(finalRun.status))
@@ -532,7 +601,7 @@ export function App() {
         setBusySourceIds((current) => current.filter((id) => id !== sourceId));
       }
     },
-    [pollRun],
+    [pollRun, selectedProductId],
   );
 
   const collectAll = async () => {
@@ -674,10 +743,6 @@ export function App() {
             <strong>Operação local</strong>
             <small>{realSources.length} fontes integradas</small>
           </div>
-          <p className="privacy-note">
-            A consulta é enviada ao provedor Brave Search. Não inclua dados pessoais ou
-            confidenciais; o sistema persiste apenas uma identificação genérica da busca.
-          </p>
         </div>
       </aside>
 
@@ -768,39 +833,6 @@ export function App() {
                   </button>
                 </div>
               </section>
-              <ProductIntelligencePanel product={selectedProduct} intelligence={intelligence} />
-              <section className="metrics-grid" aria-label="Resumo da comparação">
-                <article className="metric-card metric-card-featured">
-                  <span className="metric-index">01</span>
-                  <p>Mediana do mercado</p>
-                  <strong>{formatMoney(comparison?.median_price ?? null)}</strong>
-                  <small>
-                    {selectedVariant ? variantLabel(selectedVariant) : "Selecione uma variante"}
-                  </small>
-                </article>
-                <article className="metric-card">
-                  <span className="metric-index">02</span>
-                  <p>Ofertas comparáveis</p>
-                  <strong>{comparison?.included_offer_count ?? 0}</strong>
-                  <small>{comparison?.excluded.length ?? 0} exclusões explicadas</small>
-                </article>
-                <article className="metric-card">
-                  <span className="metric-index">03</span>
-                  <p>Varejistas distintos</p>
-                  <strong>{comparison?.retailer_count ?? 0}</strong>
-                  <small>
-                    piso operacional 6–8 · {comparison?.source_count ?? 0} canais de evidência
-                  </small>
-                </article>
-                <article className="metric-card">
-                  <span className="metric-index">04</span>
-                  <p>Referência</p>
-                  <strong className="metric-date">
-                    {formatDate(comparison?.newest_observation_at ?? null)}
-                  </strong>
-                  <small>evidência direta da fonte</small>
-                </article>
-              </section>
               <div className="workspace-grid">
                 <aside className="control-panel">
                   <div className="panel-heading">
@@ -881,22 +913,48 @@ export function App() {
                       {selectedProduct?.brand ?? "—"} · Brasil
                     </span>
                   </div>
-                  <ul className="variant-tabs" aria-label="Variantes do produto">
-                    {variants.map((variant) => (
-                      <li key={variant.id}>
-                        <button
-                          type="button"
-                          className={
-                            variant.id === selectedVariantId ? "variant-tab active" : "variant-tab"
-                          }
-                          onClick={() => setSelectedVariantId(variant.id)}
-                        >
-                          {variantLabel(variant)}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                  {comparison?.has_comparable_data ? (
+                  <VariantNavigator
+                    variants={variants}
+                    intelligence={intelligence}
+                    selectedVariantId={selectedVariantId}
+                    onSelect={setSelectedVariantId}
+                  />
+                  <section className="metrics-grid" aria-label="Resumo da configuração">
+                    <article className="metric-card metric-card-featured">
+                      <span className="metric-index">Preço central</span>
+                      <p>Mediana do mercado</p>
+                      <strong>{formatMoney(comparison?.median_price ?? null)}</strong>
+                      <small>
+                        {selectedVariant ? variantLabel(selectedVariant) : "Selecione uma variante"}
+                      </small>
+                    </article>
+                    <article className="metric-card">
+                      <span className="metric-index">Amostra</span>
+                      <p>Ofertas comparáveis</p>
+                      <strong>{comparison?.included_offer_count ?? 0}</strong>
+                      <small>{comparison?.excluded.length ?? 0} exclusões explicadas</small>
+                    </article>
+                    <article className="metric-card">
+                      <span className="metric-index">Diversidade</span>
+                      <p>Varejistas distintos</p>
+                      <strong>{comparison?.retailer_count ?? 0}</strong>
+                      <small>meta 6–8 · {comparison?.source_count ?? 0} canais de evidência</small>
+                    </article>
+                    <article className="metric-card">
+                      <span className="metric-index">Atualização</span>
+                      <p>Referência mais recente</p>
+                      <strong className="metric-date">
+                        {formatDate(comparison?.newest_observation_at ?? null)}
+                      </strong>
+                      <small>janela de {comparison?.freshness_window_hours ?? 72} horas</small>
+                    </article>
+                  </section>
+                  {comparisonLoading ? (
+                    <section className="comparison-loading" aria-live="polite">
+                      <span />
+                      <p>Atualizando a leitura desta configuração…</p>
+                    </section>
+                  ) : comparison?.has_comparable_data ? (
                     <>
                       <PriceRange comparison={comparison} />
                       <section className="offer-section">
@@ -998,6 +1056,7 @@ export function App() {
                   )}
                 </section>
               </div>
+              <ProductIntelligencePanel product={selectedProduct} intelligence={intelligence} />
             </>
           ) : null}
 
@@ -1174,14 +1233,14 @@ export function App() {
                       <strong>{source.name}</strong>
                       <p>
                         {source.adapter_name === "catalog_reference"
-                          ? "Sustenta catálogo, especificações e identidade do produto."
+                          ? ["Xiaomi Brasil", "Realme Brasil"].includes(source.name)
+                            ? "Referência oficial mapeada para futura expansão de catálogo e MSRP."
+                            : "Sustenta catálogo, especificações e identidade do produto."
                           : source.status === "enabled"
                             ? enabledSourceDescription(source)
-                            : ["iplace", "magalu"].includes(source.adapter_name)
-                              ? "URL real qualificada, mas o acesso direto do coletor recebe HTTP 403. Sem contorno de bloqueio."
-                              : source.adapter_name.endsWith("_api")
-                                ? "Canal oficial mapeado; requer credenciais e homologação."
-                                : "Domínio reconhecido aguardando avaliação de acesso e adapter."}
+                            : source.adapter_name.endsWith("_api")
+                              ? "Canal oficial mapeado; requer credenciais e homologação."
+                              : candidateSourceDescription(source)}
                       </p>
                       <a href={source.base_url} target="_blank" rel="noreferrer noopener">
                         Abrir fonte <Icon name="arrow" />

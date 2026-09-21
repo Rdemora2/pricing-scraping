@@ -115,9 +115,9 @@ export type VariantIntelligence = {
   variant_id: string;
   storage_gb: number;
   color: string;
-  min_price: string;
-  median_price: string;
-  max_price: string;
+  min_price: string | null;
+  median_price: string | null;
+  max_price: string | null;
   offer_count: number;
   retailer_count: number;
 };
@@ -165,6 +165,7 @@ export type ProductIntelligence = {
   most_expensive_color: ColorIntelligence | null;
   storage_analysis: StorageIntelligence[];
   color_analysis: ColorIntelligence[];
+  variant_analysis: VariantIntelligence[];
   methodology: string[];
   freshness_window_hours: number;
   generated_at: string;
