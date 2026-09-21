@@ -2,7 +2,7 @@
 
 **Atualizado em:** `2026-09-20`
 **Estado global:** `LOCAL_VERIFIED_WITH_EXTERNAL_GATE`
-**Unidade ativa:** `INC-08` — PR #8 verde; revisão independente pendente
+**Unidade ativa:** `INC-09` — expansão local validada; cobertura externa e revisão pendentes
 
 O roadmap conclui o laboratório e avança o portal local de inteligência de
 preços com fontes reais. A entrega permanece limitada ao ambiente local; não
@@ -50,6 +50,17 @@ O snapshot final soma 102 testes unitários verdes, 2 integrações executadas n
 container dedicado, 72% de cobertura global, pacote e imagens construídos, stack
 completa saudável e auditoria WCAG sem violações confirmadas em mobile. O gate de
 revisão independente permanece externo e impede declarar merge concluído.
+
+O `INC-09` torna a identidade e a normalização de cores/capacidades dirigidas
+pelo catálogo completo de 17 aparelhos de mercado. Sete páginas Zoom, sete
+Buscapé e três Samsung Shop adicionais passaram por coleta pública; o seed agora
+possui 51 fontes habilitadas, incluindo as duas lojas de laboratório. Os
+collectors cobrem 14 famílias com ao menos uma página homologada. Galaxy S25+
+permanece candidato nos agregadores porque suas ofertas omitem a cor; iPhone 18
+Pro/Pro Max e Motorola Edge 70 Pro ainda não apresentam matriz pública brasileira
+estável e ampla. A unidade permanece `BLOCKED_EXTERNAL`: não seria correto
+declarar cobertura de 6–8 varejistas por variante nesses casos, e a revisão
+independente do stack anterior continua pendente.
 
 O reviewer independente aprovou localmente o ciclo 2 do INC-05 no fingerprint
 `fadb3ec6d99b17b80386d1296655a3ef65be8f3523e59bd2760133dcb64d0b75`, sem

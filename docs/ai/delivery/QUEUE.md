@@ -14,6 +14,7 @@ ferramenta ou documentação do produto; esta fila é o índice operacional loca
 | 7 | `INC-07A` | Central consolida inteligência por aparelho com cobertura, custo por GB e efeitos explicáveis de armazenamento e cor | `.` | `INC-04` | `LOCAL_VERIFIED_WITH_EXTERNAL_GATE` |
 | 8 | `INC-07B` | Coletor negocia HTML em português com perfil HTTP estável e transparente, sem impersonação ou contorno de bloqueios | `.` | `INC-06` | `LOCAL_VERIFIED_WITH_EXTERNAL_GATE` |
 | 9 | `INC-08` | Auditoria integral endurece integridade de preços, imagens Docker, testes de runtime, catálogo oficial, arquitetura frontend e documentação | `.` | `INC-07B` | `LOCAL_VERIFIED_WITH_EXTERNAL_GATE` |
+| 10 | `INC-09` | Normalização cobre os 17 aparelhos de mercado e amplia fontes homologadas para toda família comercialmente observável, sem promover variantes ambíguas ou indisponíveis | `.` | `INC-08` | `BLOCKED_EXTERNAL` |
 
 Fila vazia significa governança ainda não adotada; não invente unidades.
 
