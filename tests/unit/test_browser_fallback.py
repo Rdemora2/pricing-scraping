@@ -9,7 +9,12 @@ from pricing_intel.collection.browser import (
     has_browser_fallback,
     install_browser_request_policy,
 )
-from pricing_intel.collection.spiders.retail import AmazonSpider, AmericanasSpider, KabumSpider
+from pricing_intel.collection.spiders.retail import (
+    AmazonSpider,
+    AmericanasSpider,
+    CarrefourSpider,
+    KabumSpider,
+)
 
 
 @dataclass
@@ -247,6 +252,23 @@ def test_js_catalog_search_has_one_bounded_browser_fallback(
     page_method = fallback[0].meta["playwright_page_methods"][0]
     assert page_method.method == "wait_for_selector"
     assert page_method.args == (wait_selector,)
+
+
+def test_carrefour_empty_search_does_not_escalate_to_browser() -> None:
+    spider = CarrefourSpider(
+        source_id="00000000-0000-0000-0000-000000000001",
+        run_id="00000000-0000-0000-0000-000000000002",
+        base_url="https://www.carrefour.com.br/",
+        product_name="Apple iPhone 16",
+        product_model="iphone_16",
+        storages="128",
+    )
+    request = Request("https://www.carrefour.com.br/busca/Apple%20iPhone%2016%20128GB")
+    response = TextResponse(
+        url=request.url, request=request, body=b"<main></main>", encoding="utf-8"
+    )
+
+    assert list(spider.parse_search(response, storage_gb="128")) == []
 
 
 def test_rendered_amazon_search_follows_exact_model_and_capacity() -> None:

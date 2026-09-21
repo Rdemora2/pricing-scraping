@@ -47,7 +47,10 @@ SOURCES = (
         base_url="https://www.carrefour.com.br/",
         kind="real",
         adapter_name="carrefour",
-        status="enabled",
+        # Product pages remain extractable, but the retailer currently forbids
+        # the source-root search route in robots.txt. Keep the adapter visible
+        # without exposing an execution that cannot discover products safely.
+        status="candidate",
     ),
     SeedSource(
         name="iPlace",

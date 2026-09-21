@@ -93,7 +93,6 @@ def test_search_capable_sources_are_registered_once_at_domain_root() -> None:
     assert {item.name for item in dynamic_sources if item.status == "enabled"} == {
         "Americanas",
         "Buscapé",
-        "Carrefour",
         "KaBuM!",
         "Samsung Shop",
         "Zoom",
@@ -104,6 +103,7 @@ def test_national_source_portfolio_is_registered_without_fake_enablement() -> No
     by_name = {item.name: item for item in SOURCES}
     expected_candidates = {
         "Amazon Brasil",
+        "Carrefour",
         "Casas Bahia",
         "Ponto",
         "Extra",
@@ -137,7 +137,6 @@ def test_only_validated_market_search_collectors_are_enabled() -> None:
     assert enabled_market == {
         "Americanas",
         "Buscapé",
-        "Carrefour",
         "KaBuM!",
         "Samsung Shop",
         "Zoom",

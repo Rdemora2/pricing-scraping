@@ -9,7 +9,7 @@ produz observações reais sem autenticação, CAPTCHA ou contorno de política.
 |---|---|---|
 | Amazon Brasil | candidate | Adapter e busca cobertos; execução final recebeu HTTP 503 e produziu zero observações. |
 | Americanas | enabled | Run `1df5115e-f6d4-4ae2-8f28-67cd410a0868`: 6 observações e 6 evidências. |
-| Carrefour | enabled | Run `fb3a4497-6d71-4796-aa5b-bb15a91772f8`: 3 observações e 3 evidências. |
+| Carrefour | candidate | Run `3e0388a3-1a1f-4839-baad-ce84f104d670`: a busca do iPhone 16 foi recusada três vezes por `robots.txt`; a política atual proíbe `/busca/`. Runs históricos permanecem auditáveis, mas não justificam nova execução. |
 | iPlace | candidate | HTTP 403 no acesso declarado. |
 | Fast Shop | candidate | Produto estruturado validado, mas `robots.txt` não autoriza a busca automatizada. |
 | Zoom | enabled | Run `c7461e5f-9f78-422b-bde8-e194ff2f6d23`: 25 observações. |

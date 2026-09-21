@@ -301,6 +301,14 @@ class CarrefourSpider(_RetailSpider):
             yield request
 
     def parse_search(self, response: scrapy.http.Response, *, storage_gb: str):
+        if response.status != 200:
+            self.logger.error("Carrefour search refused with HTTP %s", response.status)
+            return
+        try:
+            self.response_text(response)
+        except ExtractionError as exc:
+            self.logger.error("Carrefour search is not a readable HTML response: %s", exc)
+            return
         yield from self.product_requests_from_search(
             response,
             storage_gb=storage_gb,
