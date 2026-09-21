@@ -40,16 +40,16 @@
   ao volume preservado: `18` produtos, `224` variantes incluindo laboratório e
   `63` fontes declaradas.
 
-## Ambiente local e limitação operacional
+## Ambiente local
 
 - `.env` ignorado foi criado com modo `600`; a senha local foi gerada sem
   exposição em logs e rotacionada no PostgreSQL sem apagar o volume.
-- O executor bloqueou o comando `docker compose up -d --build`. Os containers
-  antigos de API/worker não foram reconciliados após a rotação e a API antiga
-  responde erro de banco. A API temporária da imagem nova respondeu `/health`
-  e passou integração, mas não substitui a stack normal.
-- Para concluir o runtime local, execute `docker compose up -d --build` em um
-  terminal autorizado e repita `docker compose ps` e os testes de integração.
+- `docker compose up -d --build` foi concluído pelo operador sem remover volumes.
+  PostgreSQL, lojas de laboratório, API e frontend ficaram `healthy`; o worker
+  permaneceu em execução.
+- Readback final: `GET /health` retornou `{"status":"ok"}`, frontend retornou
+  HTTP `200` e `API_BASE_URL=http://127.0.0.1:8000 uv run pytest
+  tests/integration -q` aprovou `2` testes contra a stack definitiva.
 
 ## Riscos e rollback
 
