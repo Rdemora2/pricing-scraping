@@ -5,6 +5,7 @@ type VariantNavigatorProps = {
   variants: Variant[];
   intelligence: ProductIntelligence | null;
   selectedVariantId: string | null;
+  disabled?: boolean;
   onSelect: (variantId: string) => void;
 };
 
@@ -16,6 +17,7 @@ export function VariantNavigator({
   variants,
   intelligence,
   selectedVariantId,
+  disabled = false,
   onSelect,
 }: VariantNavigatorProps) {
   const selectedVariant = variants.find((item) => item.id === selectedVariantId) ?? variants[0];
@@ -46,8 +48,8 @@ export function VariantNavigator({
           <h3 id="variant-configurator-title">Escolha capacidade e acabamento</h3>
         </div>
         <p>
-          Cada opção mostra a cobertura coletada agora. Configurações sem evidência continuam
-          visíveis, mas não entram nos indicadores.
+          Armazenamento resume todas as cores; ao escolher uma cor, sua amostra e mediana são as
+          mesmas usadas no detalhamento abaixo.
         </p>
       </div>
 
@@ -64,15 +66,16 @@ export function VariantNavigator({
                 type="button"
                 className={isSelected ? "storage-option active" : "storage-option"}
                 aria-pressed={isSelected}
+                disabled={disabled}
                 onClick={() => selectStorage(storage.storage_gb)}
               >
                 <strong>{formatStorage(storage.storage_gb)}</strong>
                 <span>
-                  {storage.observed_variant_count}/{storage.catalog_variant_count} cores com preço
+                  {storage.observed_variant_count}/{storage.catalog_variant_count} cores observadas
                 </span>
                 <small>
                   {storage.representative_price
-                    ? `mediana ${formatMoney(storage.representative_price)}`
+                    ? `preço típico entre cores ${formatMoney(storage.representative_price)}`
                     : "sem evidência recente"}
                 </small>
               </button>
@@ -96,6 +99,7 @@ export function VariantNavigator({
                 type="button"
                 className={isSelected ? "color-option active" : "color-option"}
                 aria-pressed={isSelected}
+                disabled={disabled}
                 onClick={() => onSelect(variant.id)}
               >
                 <span className="color-option-name">

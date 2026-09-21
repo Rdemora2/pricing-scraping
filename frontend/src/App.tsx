@@ -16,8 +16,19 @@ import type {
 
 type View = "overview" | "catalog" | "sources" | "discovery";
 type IconName = "arrow" | "bolt" | "check" | "database" | "signal" | "grid" | "search" | "plus";
+type CollectionProgress = {
+  phase: "collecting" | "consolidating";
+  total: number;
+  completed: number;
+};
+type CollectionSummary = {
+  tone: "success" | "warning";
+  title: string;
+  message: string;
+};
 
 const terminalStatuses = new Set<CollectionRun["status"]>(["succeeded", "failed", "partial"]);
+const runPollingAttempts = 300;
 const priorityVariantByProduct: Record<string, { storage: string; color: string }> = {
   "Apple iPhone 17": { storage: "256", color: "Preto" },
   "Apple iPhone 17 Pro": { storage: "256", color: "Prateado" },
@@ -86,6 +97,16 @@ function runLabel(run: CollectionRun | undefined): string {
   }[run.status];
 }
 
+function collectionFailureMessage(reason: string | null): string {
+  if (reason === "collector produced no observations") {
+    return "nenhuma oferta compatível foi encontrada nesta rodada";
+  }
+  if (reason?.startsWith("spider exited with code")) {
+    return "a fonte não respondeu corretamente nesta rodada";
+  }
+  return reason ?? "a coleta não foi concluída";
+}
+
 function sourceState(source: Source): { label: string; tone: string } {
   if (source.status === "enabled") return { label: "Integrada", tone: "ready" };
   if (source.adapter_name === "catalog_reference")
@@ -98,7 +119,7 @@ function sourceState(source: Source): { label: string; tone: string } {
   return { label: "Em qualificação", tone: "candidate" };
 }
 
-const browserFallbackAdapters = new Set(["amazon", "americanas", "carrefour"]);
+const browserFallbackAdapters = new Set(["amazon", "americanas"]);
 const accessBlockedSources = new Set([
   "iPlace",
   "Magalu",
@@ -127,6 +148,9 @@ function candidateSourceDescription(source: Source): string {
   }
   if (source.name === "Amazon Brasil") {
     return "Busca e adapter implementados, mas a homologação final recebeu HTTP 503 e não persistiu ofertas.";
+  }
+  if (source.name === "Carrefour") {
+    return "Páginas de produto são estruturadas, mas o robots.txt atual não autoriza a rota de busca necessária à descoberta por aparelho.";
   }
   if (source.name === "Bondfaro") {
     return "Adapter validado com fixture pública; a execução foi recusada pelo robots.txt da fonte.";
@@ -414,6 +438,8 @@ export function App() {
   const [intelligence, setIntelligence] = useState<ProductIntelligence | null>(null);
   const [runsBySource, setRunsBySource] = useState<Record<string, CollectionRun>>({});
   const [busySourceIds, setBusySourceIds] = useState<string[]>([]);
+  const [collectionProgress, setCollectionProgress] = useState<CollectionProgress | null>(null);
+  const [collectionSummary, setCollectionSummary] = useState<CollectionSummary | null>(null);
   const [candidates, setCandidates] = useState<SourceCandidate[]>([]);
   const [discoveryQuery, setDiscoveryQuery] = useState("iPhone 17 preço comprar Brasil");
   const [discoveryBusy, setDiscoveryBusy] = useState(false);
@@ -444,7 +470,13 @@ export function App() {
   const registrySources = sources
     .filter((item) => item.kind === "real" && item.status !== "disabled")
     .sort((left, right) => sourceDisplayRank(left) - sourceDisplayRank(right));
-  const collectionBusy = busySourceIds.length > 0;
+  const collectionBusy = busySourceIds.length > 0 || collectionProgress !== null;
+  const activeSourceNames = productSources
+    .filter((source) => busySourceIds.includes(source.id))
+    .map((source) => source.name);
+  const collectionProgressPct = collectionProgress
+    ? Math.round((collectionProgress.completed / collectionProgress.total) * 100)
+    : 0;
 
   const enterPlatform = () => {
     window.history.pushState({}, "", "/platform");
@@ -460,7 +492,28 @@ export function App() {
     setComparisonLoading(true);
     try {
       const result = await api.getComparison(variantId);
-      if (requestId === comparisonRequestId.current) setComparison(result);
+      if (requestId === comparisonRequestId.current) {
+        setComparison(result);
+        setIntelligence((current) =>
+          current
+            ? {
+                ...current,
+                variant_analysis: current.variant_analysis.map((variant) =>
+                  variant.variant_id === result.variant_id
+                    ? {
+                        ...variant,
+                        min_price: result.min_price,
+                        median_price: result.median_price,
+                        max_price: result.max_price,
+                        offer_count: result.included_offer_count,
+                        retailer_count: result.retailer_count,
+                      }
+                    : variant,
+                ),
+              }
+            : current,
+        );
+      }
     } finally {
       if (requestId === comparisonRequestId.current) setComparisonLoading(false);
     }
@@ -525,6 +578,7 @@ export function App() {
     setVariants([]);
     setSelectedVariantId(null);
     setComparison(null);
+    setCollectionSummary(null);
     Promise.all([
       api.listVariants(selectedProductId),
       api.getProductIntelligence(selectedProductId),
@@ -576,7 +630,11 @@ export function App() {
 
   const pollRun = useCallback(async (initialRun: CollectionRun) => {
     let current = initialRun;
-    for (let attempt = 0; attempt < 90 && !terminalStatuses.has(current.status); attempt += 1) {
+    for (
+      let attempt = 0;
+      attempt < runPollingAttempts && !terminalStatuses.has(current.status);
+      attempt += 1
+    ) {
       await new Promise((resolve) => window.setTimeout(resolve, 1000));
       current = await api.getRun(initialRun.id);
       setRunsBySource((existing) => ({ ...existing, [current.source_id]: current }));
@@ -586,9 +644,10 @@ export function App() {
 
   const collectSource = useCallback(
     async (sourceId: string) => {
-      setError(null);
       if (!selectedProductId) throw new Error("Selecione um aparelho antes de coletar");
-      setBusySourceIds((current) => [...current, sourceId]);
+      setBusySourceIds((current) =>
+        current.includes(sourceId) ? current : [...current, sourceId],
+      );
       try {
         const run = await api.collectSource(sourceId, selectedProductId);
         setRunsBySource((existing) => ({ ...existing, [sourceId]: run }));
@@ -596,7 +655,8 @@ export function App() {
         if (!terminalStatuses.has(finalRun.status))
           throw new Error("A coleta excedeu o tempo de acompanhamento");
         if (finalRun.status === "failed")
-          throw new Error(finalRun.failure_reason ?? "A coleta falhou");
+          throw new Error(collectionFailureMessage(finalRun.failure_reason));
+        return finalRun;
       } finally {
         setBusySourceIds((current) => current.filter((id) => id !== sourceId));
       }
@@ -611,12 +671,76 @@ export function App() {
       );
       return;
     }
+    setError(null);
+    setCollectionSummary(null);
+    setCollectionProgress({
+      phase: "collecting",
+      total: productSources.length,
+      completed: 0,
+    });
     try {
-      await Promise.all(productSources.map((source) => collectSource(source.id)));
-      if (selectedVariantId) await loadComparison(selectedVariantId);
-      if (selectedProductId) await loadIntelligence(selectedProductId);
+      const results = await Promise.all(
+        productSources.map(async (source) => {
+          try {
+            const run = await collectSource(source.id);
+            return {
+              source,
+              outcome: run.status === "partial" ? ("partial" as const) : ("succeeded" as const),
+              reason:
+                run.status === "partial"
+                  ? collectionFailureMessage(run.failure_reason ?? "coleta concluída parcialmente")
+                  : null,
+            };
+          } catch (reason) {
+            return {
+              source,
+              outcome: "failed" as const,
+              reason: reason instanceof Error ? reason.message : "a coleta não foi concluída",
+            };
+          } finally {
+            setCollectionProgress((current) =>
+              current
+                ? {
+                    ...current,
+                    completed: current.completed + 1,
+                  }
+                : current,
+            );
+          }
+        }),
+      );
+      setCollectionProgress((current) =>
+        current ? { ...current, phase: "consolidating" } : current,
+      );
+      await Promise.all([
+        selectedVariantId ? loadComparison(selectedVariantId) : Promise.resolve(),
+        selectedProductId ? loadIntelligence(selectedProductId) : Promise.resolve(),
+      ]);
+
+      const issues = results.filter((result) => result.outcome !== "succeeded");
+      const completed = results.filter((result) => result.outcome !== "failed").length;
+      setCollectionSummary(
+        issues.length === 0
+          ? {
+              tone: "success",
+              title: "Mercado atualizado",
+              message: `${completed} ${completed === 1 ? "fonte concluída" : "fontes concluídas"}; a leitura já reflete os dados mais recentes.`,
+            }
+          : {
+              tone: "warning",
+              title:
+                completed > 0
+                  ? "Atualização concluída parcialmente"
+                  : "Sem novos dados nesta rodada",
+              message: `${completed} de ${results.length} fontes trouxeram dados. ${issues
+                .map(({ source, reason }) => `${source.name}: ${reason}`)
+                .join("; ")}.`,
+            },
+      );
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Falha ao atualizar mercado");
+    } finally {
+      setCollectionProgress(null);
     }
   };
 
@@ -808,6 +932,7 @@ export function App() {
                   <select
                     id="product-select"
                     value={selectedProductId ?? ""}
+                    disabled={collectionBusy}
                     onChange={(event) => setSelectedProductId(event.target.value)}
                   >
                     {visibleProducts.map((item) => (
@@ -817,22 +942,106 @@ export function App() {
                     ))}
                   </select>
                   <button
-                    className="primary-action"
+                    className={`primary-action market-refresh${collectionBusy ? " is-collecting" : ""}`}
                     type="button"
                     onClick={collectAll}
                     disabled={collectionBusy || !hasProductSources}
+                    aria-busy={collectionBusy}
                   >
-                    <span>
-                      {collectionBusy
-                        ? "Coletando mercado"
-                        : hasProductSources
-                          ? "Atualizar mercado"
-                          : "Sem coletor ativo"}
+                    <span className="market-refresh-copy">
+                      <strong>
+                        {collectionProgress?.phase === "consolidating"
+                          ? "Consolidando resultados"
+                          : collectionBusy
+                            ? "Coletando mercado"
+                            : hasProductSources
+                              ? "Atualizar mercado"
+                              : "Sem coletor ativo"}
+                      </strong>
+                      {collectionBusy ? (
+                        <small>
+                          {collectionProgress
+                            ? `${collectionProgress.completed} de ${collectionProgress.total} fontes concluídas`
+                            : `${busySourceIds.length} ${busySourceIds.length === 1 ? "fonte em execução" : "fontes em execução"}`}
+                        </small>
+                      ) : null}
                     </span>
-                    <Icon name={collectionBusy ? "bolt" : "arrow"} />
+                    {collectionBusy ? (
+                      <span className="collection-orbit" aria-hidden="true">
+                        <i />
+                        <i />
+                      </span>
+                    ) : (
+                      <Icon name="arrow" />
+                    )}
                   </button>
                 </div>
               </section>
+              {collectionBusy ? (
+                <section className="collection-progress" role="status" aria-live="polite">
+                  <span className="collection-radar" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                  <div className="collection-progress-copy">
+                    <span>Atualização em curso</span>
+                    <strong>
+                      {collectionProgress?.phase === "consolidating"
+                        ? "Transformando as coletas em uma nova leitura de mercado"
+                        : "Consultando fontes e validando ofertas comparáveis"}
+                    </strong>
+                    <small>
+                      {collectionProgress?.phase === "consolidating"
+                        ? "Preços, cobertura e inteligência estão sendo recalculados."
+                        : activeSourceNames.length > 0
+                          ? `Em execução: ${activeSourceNames.join(", ")}`
+                          : "Preparando os coletores homologados…"}
+                    </small>
+                  </div>
+                  <div className="collection-progress-meter">
+                    <span>
+                      {collectionProgress
+                        ? `${collectionProgress.completed}/${collectionProgress.total}`
+                        : "Ao vivo"}
+                    </span>
+                    <div
+                      role="progressbar"
+                      aria-label="Progresso da atualização de mercado"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={collectionProgress ? collectionProgressPct : undefined}
+                    >
+                      <i
+                        className={collectionProgress ? undefined : "is-indeterminate"}
+                        style={{
+                          width: collectionProgress ? `${collectionProgressPct}%` : "42%",
+                        }}
+                      />
+                    </div>
+                  </div>
+                </section>
+              ) : collectionSummary ? (
+                <section
+                  className={`collection-summary collection-summary-${collectionSummary.tone}`}
+                  role="status"
+                >
+                  <span className="collection-summary-mark">
+                    <Icon name={collectionSummary.tone === "success" ? "check" : "signal"} />
+                  </span>
+                  <div>
+                    <strong>{collectionSummary.title}</strong>
+                    <p>{collectionSummary.message}</p>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Fechar resumo da atualização"
+                    onClick={() => setCollectionSummary(null)}
+                  >
+                    Fechar
+                  </button>
+                </section>
+              ) : null}
               <div className="workspace-grid">
                 <aside className="control-panel">
                   <div className="panel-heading">
@@ -860,6 +1069,8 @@ export function App() {
                             className="icon-action"
                             type="button"
                             onClick={() => {
+                              setError(null);
+                              setCollectionSummary(null);
                               collectSource(source.id)
                                 .then(() =>
                                   Promise.all([
@@ -873,14 +1084,20 @@ export function App() {
                                 )
                                 .catch((reason: unknown) =>
                                   setError(
-                                    reason instanceof Error ? reason.message : "Falha na coleta",
+                                    reason instanceof Error
+                                      ? `${source.name}: ${reason.message}`
+                                      : `Falha na coleta de ${source.name}`,
                                   ),
                                 );
                             }}
                             disabled={busy}
                             aria-label={`Coletar ${source.name}`}
                           >
-                            <Icon name={busy ? "bolt" : "arrow"} />
+                            {busy ? (
+                              <span className="source-spinner" aria-hidden="true" />
+                            ) : (
+                              <Icon name="arrow" />
+                            )}
                           </button>
                         </article>
                       );
@@ -917,6 +1134,7 @@ export function App() {
                     variants={variants}
                     intelligence={intelligence}
                     selectedVariantId={selectedVariantId}
+                    disabled={collectionBusy}
                     onSelect={setSelectedVariantId}
                   />
                   <section className="metrics-grid" aria-label="Resumo da configuração">
