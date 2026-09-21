@@ -134,7 +134,8 @@ comercial esteja conectada:
    a homologação receber HTTP 503 sem produzir observações.
 
 O fallback de navegador não resolve CAPTCHA, não autentica e não contorna HTTP
-403. Ele bloqueia imagens, mídia, fontes e hosts não revisados; sua origem fica
+403 — ele só nasce de uma resposta HTTP permitida cuja evidência é insuficiente,
+nunca de um bloqueio. Ele bloqueia imagens, mídia, fontes e hosts não revisados; sua origem fica
 registrada no nome versionado do extrator. No Docker, apenas o `worker` carrega o
 runtime Chromium — API e migração continuam na imagem Python enxuta. O worker
 executa sem root e sem capabilities, com `no-new-privileges`, raiz somente
@@ -321,9 +322,10 @@ preservar histórico de coletas.
   `/busca/`, rota necessária ao coletor orientado pelo aparelho;
 - candidatos da busca ampla exigem revisão humana e adaptador dedicado antes de
   qualquer coleta;
-- requests HTTP declaram o coletor e negociam HTML em português com cabeçalhos
-  estáveis de representação; não enviam fingerprint de Chrome nem perfil de
-  usuário autenticado;
+- requests HTTP negociam HTML em português com um perfil de cabeçalhos
+  realista de Chrome/Windows atual (ver [decisions/0001](docs/ai/decisions/0001-browser-realistic-http-profile.md));
+  não enviam cookie de sessão nem perfil de usuário autenticado, e o fallback
+  de navegador nunca é acionado para contornar um bloqueio;
 - a API não possui autenticação e deve permanecer restrita ao loopback;
 - recomendação de preço, demanda, elasticidade e automação comercial estão fora
   do escopo;

@@ -224,12 +224,7 @@ class AmazonSpider(_RetailSpider):
         "m.media-amazon.com",
         "images-na.ssl-images-amazon.com",
     )
-    custom_settings = {  # noqa: RUF012 - Scrapy class contract
-        "CLOSESPIDER_PAGECOUNT": 40,
-        # Keep rendering minimal and do not emulate a signed-in customer
-        # profile. The global, transparent representation headers still apply.
-        "COMPRESSION_ENABLED": False,
-    }
+    custom_settings = {"CLOSESPIDER_PAGECOUNT": 40}  # noqa: RUF012 - Scrapy class contract
 
     def catalog_search_url(self, capacity: str) -> str:
         return urljoin(self.base_url, f"s?k={quote_plus(f'{self.product_name} {capacity}')}")
@@ -267,6 +262,9 @@ class AmazonSpider(_RetailSpider):
             )
 
     def parse_product(self, response: scrapy.http.Response):
+        if response.status != 200:
+            self.logger.error("Amazon product page refused with HTTP %s", response.status)
+            return
         try:
             listing = extract_amazon_listing(self.response_text(response), response.url)
         except ExtractionError as exc:
@@ -316,6 +314,9 @@ class CarrefourSpider(_RetailSpider):
         )
 
     def parse_product(self, response: scrapy.http.Response):
+        if response.status != 200:
+            self.logger.error("Carrefour product page refused with HTTP %s", response.status)
+            return
         try:
             listing = extract_carrefour_listing(self.response_text(response), response.url)
         except ExtractionError as exc:
@@ -377,6 +378,9 @@ class AmericanasSpider(_RetailSpider):
             )
 
     def parse_product(self, response: scrapy.http.Response):
+        if response.status != 200:
+            self.logger.error("Americanas product page refused with HTTP %s", response.status)
+            return
         try:
             listing = extract_americanas_listing(self.response_text(response), response.url)
         except ExtractionError as exc:
@@ -430,6 +434,9 @@ class KabumSpider(_RetailSpider):
             yield request
 
     def parse_search(self, response: scrapy.http.Response, *, storage_gb: str):
+        if response.status != 200:
+            self.logger.error("KaBuM! search refused with HTTP %s", response.status)
+            return
         requests = list(
             self.product_requests_from_search(
                 response,

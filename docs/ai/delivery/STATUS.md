@@ -1,8 +1,8 @@
 # Estado de execução
 
 **Atualizado em:** `2026-09-21`
-**Estado global:** `LOCAL_VERIFIED_WITH_EXTERNAL_GATE`
-**Unidade ativa:** `INC-10` — busca por fonte e nova experiência localmente validadas; revisão independente pendente
+**Estado global:** `IN_REVIEW`
+**Unidade ativa:** `INC-11` — perfil HTTP realista de navegador; revisão funcional/segurança independentes concluídas nesta sessão com achados corrigidos (ver evidência); aguardando push/PR/CI remoto
 
 O roadmap conclui o laboratório e avança o portal local de inteligência de
 preços com fontes reais. A entrega permanece limitada ao ambiente local; não
@@ -85,6 +85,29 @@ resultados das demais;
 2 TB foram exercitados em browser, sem erro de página, overflow mobile ou
 violação WCAG automatizada. A diversidade exata ainda varia de `3` a `11`
 varejistas e a revisão independente permanece como gate externo.
+
+O `INC-11` reverte parcialmente o `INC-07B` por decisão de negócio explícita
+(`docs/ai/decisions/0001-browser-realistic-http-profile.md`): o perfil HTTP
+passa a negociar como um Chrome/Windows atual (User-Agent, Client Hints,
+Sec-Fetch-*) e um novo `RetryAfterMiddleware` respeita `Retry-After` em HTTP
+429 antes do retry. `robots.txt`, a ausência de escalada de bloqueio para o
+fallback de navegador, e a ausência de CAPTCHA/fingerprint TLS/rotação de
+proxy permanecem inalterados — decisão explícita, não descuido. Efeito
+esperado é limitado às fontes bloqueadas por sniffing simples de headers;
+fontes bloqueadas por `robots.txt` ou WAF com fingerprint TLS/comportamental
+não mudam de estado só com esta entrega. Revisão funcional e de segurança
+independentes (agentes `reviewer`/`security-reviewer` neste runtime, capaz
+de delegar revisão diferente do runtime Codex do `INC-06`/`INC-07B`)
+descartaram um falso positivo (sintaxe reportada como inválida por ambos os
+agentes sem `Bash`; confirmada válida no Python 3.14.7 real via `compile()`
+com controle negativo) e confirmaram as quatro exclusões da ADR íntegras no
+código. Corrigiram teto agregado ausente em `Retry-After`
+(`CLOSESPIDER_TIMEOUT`), mismatch de fingerprint UA/`Sec-CH-UA` no fallback
+Playwright, parsing de dígito Unicode não-ASCII e uma lacuna de defesa em
+profundidade em quatro métodos de spider. Runtime local final: `uv run
+pytest` 171 passados e 2 integrações puladas sem `API_BASE_URL`; `ruff
+check`, `ruff format --check` e `ty check` verdes. Aguardando push, PR e CI
+remoto.
 
 O reviewer independente aprovou localmente o ciclo 2 do INC-05 no fingerprint
 `fadb3ec6d99b17b80386d1296655a3ef65be8f3523e59bd2760133dcb64d0b75`, sem

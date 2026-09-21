@@ -13,7 +13,14 @@ from pricing_intel.collection.network_policy import Resolver, validate_outbound_
 
 BROWSER_FALLBACK_ADAPTERS = frozenset({"amazon", "americanas", "carrefour", "kabum"})
 _BLOCKED_RESOURCE_TYPES = frozenset({"font", "image", "media"})
-DECLARED_USER_AGENT = "pricing-intel-lab-bot/0.1 (+local pricing intelligence portfolio project)"
+
+# Chrome/Windows desktop identity. Bump CHROME_MAJOR_VERSION as real Chrome
+# releases move on; a stale version is itself a fingerprinting signal.
+CHROME_MAJOR_VERSION = "139"
+BROWSER_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    f"(KHTML, like Gecko) Chrome/{CHROME_MAJOR_VERSION}.0.0.0 Safari/537.36"
+)
 
 
 def has_browser_fallback(adapter_name: str) -> bool:
@@ -75,7 +82,11 @@ def browser_request_meta(
             "locale": "pt-BR",
             "service_workers": "block",
             "timezone_id": "America/Sao_Paulo",
-            "user_agent": DECLARED_USER_AGENT,
+            # No user_agent override (decisions/0001): Playwright's bundled
+            # Chromium generates Sec-CH-UA/navigator.userAgentData from its
+            # own binary. Overriding only the UA string would make those
+            # disagree with the real build — a mismatch is a stronger bot
+            # signal than the native, internally-consistent identity.
         },
         "browser_allowed_hosts": normalized_hosts,
     }
