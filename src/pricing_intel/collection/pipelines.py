@@ -14,8 +14,16 @@ from datetime import UTC, datetime
 from itemadapter import ItemAdapter
 
 from pricing_intel.collection.db import SyncDb
-from pricing_intel.collection.items import DiscoveredPageItem, ListingItem
-from pricing_intel.domain.enums import DiscoveredPageStatus, EvidenceType
+from pricing_intel.collection.items import (
+    DiscoveredPageItem,
+    ListingItem,
+    ListingRejectedItem,
+)
+from pricing_intel.domain.enums import (
+    DiscoveredPageStatus,
+    EvidenceType,
+    RejectionStage,
+)
 from pricing_intel.domain.money import Money
 from pricing_intel.matching.service import decide_match
 from pricing_intel.matching.signature import compute_signature
@@ -42,9 +50,22 @@ class PostgresPipeline:
         adapter = ItemAdapter(item)
         if isinstance(item, DiscoveredPageItem):
             self._handle_discovered_page(adapter)
+        elif isinstance(item, ListingRejectedItem):
+            self._handle_rejection(adapter)
         elif isinstance(item, ListingItem):
             self._handle_listing(adapter, self._crawler.spider)
         return item
+
+    def _handle_rejection(self, adapter: ItemAdapter) -> None:
+        self.db.record_listing_rejection(
+            collection_run_id=adapter["run_id"],
+            source_id=adapter["source_id"],
+            stage=adapter["stage"],
+            reason=adapter["reason"],
+            url=adapter["url"],
+            raw_title=adapter.get("raw_title") or "",
+            attributes=adapter.get("attributes") or {},
+        )
 
     def _handle_discovered_page(self, adapter: ItemAdapter) -> None:
         self.db.upsert_discovered_page(
@@ -127,6 +148,22 @@ class PostgresPipeline:
         )
         if decision is None:
             spider.logger.warning("offer %s at %s did not match any known variant", offer_id, url)
+            # The offer itself is already persisted; what is lost is its place
+            # in a comparison. Record why, so unmatched titles can grow the
+            # catalog and its colour aliases instead of vanishing into a log.
+            self.db.record_listing_rejection(
+                collection_run_id=adapter["run_id"],
+                source_id=adapter["source_id"],
+                stage=RejectionStage.MATCHING,
+                reason=(
+                    f"attribute signature '{signature}' matches no canonical variant"
+                    if not gtin
+                    else f"GTIN {gtin} and signature '{signature}' match no canonical variant"
+                ),
+                url=url,
+                raw_title=adapter.get("raw_title") or "",
+                attributes=attributes,
+            )
             return
         self.db.set_offer_match(
             offer_id=offer_id,

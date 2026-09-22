@@ -5,10 +5,15 @@ import pytest
 from scrapy.http import Request, TextResponse
 
 from pricing_intel.collection.extraction import ExtractionError, iter_product_json_ld
+from pricing_intel.collection.items import ListingRejectedItem
 from pricing_intel.collection.real_sources import (
+    BUSCAPE_MAX_OFFER_PAGES,
+    BUSCAPE_OFFER_PAGE_SIZE,
     MAX_AGGREGATE_OFFERS,
     BuscapeOfferParser,
+    SkipLog,
     TwoAFinderMarkdownParser,
+    _color_from_text,
     extract_amazon_listing,
     extract_americanas_listing,
     extract_carrefour_listing,
@@ -29,7 +34,7 @@ from pricing_intel.collection.spiders.retail import (
     SamsungShopSpider,
     ZoomSpider,
 )
-from pricing_intel.domain.enums import Availability, Condition
+from pricing_intel.domain.enums import Availability, Condition, RejectionStage
 from pricing_intel.matching.signature import compute_signature
 from scripts.seed_catalog import PRODUCTS
 
@@ -795,3 +800,246 @@ def test_buscape_keeps_commercial_and_evidence_urls_distinct() -> None:
     assert item["url"] == product_url
     assert item["evidence_url"] == api_url
     assert item["raw_html"] == payload
+
+
+def _buscape_hit(index: int, *, color: str = "Violeta") -> dict:
+    return {
+        "offer_id": f"offer-{index}",
+        "name": f"Smartphone Samsung Galaxy S26+ 256GB {color}",
+        "seller": {"id": str(index), "name": f"Loja {index}"},
+        "sales_condition": {"price": 8555.07 + index, "stock": 4},
+        "condition": "NEW",
+    }
+
+
+def _buscape_offer_response(hits: list[dict], *, page: int) -> TextResponse:
+    api_url = (
+        "https://api-v1.zoom.com.br/sale-condition/v1/product/13994200"
+        f"?order=DEFAULT&page={page}&pageSize={BUSCAPE_OFFER_PAGE_SIZE}"
+    )
+    body = json.dumps({"hits": hits}).encode()
+    return TextResponse(url=api_url, request=Request(api_url), body=body, encoding="utf-8")
+
+
+def test_buscape_offer_page_reports_raw_hit_count_not_kept_listings() -> None:
+    # A page can be full of offers for other models and still be followed by
+    # one holding a retailer we need, so fullness must key off raw hits.
+    hits = [_buscape_hit(index) for index in range(BUSCAPE_OFFER_PAGE_SIZE - 1)]
+    hits.append({"offer_id": "x", "name": "Capa de silicone", "seller": {}, "sales_condition": {}})
+
+    page = BuscapeOfferParser().parse_page(
+        json.dumps({"hits": hits}), "https://www.buscape.com.br/celular/item"
+    )
+
+    assert page.hit_count == BUSCAPE_OFFER_PAGE_SIZE
+    assert len(page.listings) == BUSCAPE_OFFER_PAGE_SIZE - 1
+    assert page.is_full
+
+
+def test_buscape_follows_the_next_offer_page_while_pages_come_back_full() -> None:
+    spider = BuscapeSpider(
+        source_id="source-1",
+        run_id="run-1",
+        base_url="https://www.buscape.com.br/",
+    )
+    response = _buscape_offer_response(
+        [_buscape_hit(index) for index in range(BUSCAPE_OFFER_PAGE_SIZE)], page=1
+    )
+
+    results = list(
+        spider.parse_offers(
+            response,
+            evidence_url="https://www.buscape.com.br/celular/item",
+            product_id="13994200",
+            page=1,
+        )
+    )
+
+    items = [result for result in results if not isinstance(result, Request)]
+    followed = [result for result in results if isinstance(result, Request)]
+    assert len(items) == BUSCAPE_OFFER_PAGE_SIZE
+    assert len(followed) == 1
+    assert "page=2" in followed[0].url
+    assert followed[0].cb_kwargs["page"] == 2
+
+
+def test_buscape_stops_paginating_on_a_short_page() -> None:
+    spider = BuscapeSpider(
+        source_id="source-1",
+        run_id="run-1",
+        base_url="https://www.buscape.com.br/",
+    )
+    response = _buscape_offer_response([_buscape_hit(1), _buscape_hit(2)], page=1)
+
+    results = list(
+        spider.parse_offers(
+            response,
+            evidence_url="https://www.buscape.com.br/celular/item",
+            product_id="13994200",
+            page=1,
+        )
+    )
+
+    assert not [result for result in results if isinstance(result, Request)]
+
+
+def test_buscape_never_paginates_past_the_configured_ceiling() -> None:
+    spider = BuscapeSpider(
+        source_id="source-1",
+        run_id="run-1",
+        base_url="https://www.buscape.com.br/",
+    )
+    response = _buscape_offer_response(
+        [_buscape_hit(index) for index in range(BUSCAPE_OFFER_PAGE_SIZE)],
+        page=BUSCAPE_MAX_OFFER_PAGES,
+    )
+
+    results = list(
+        spider.parse_offers(
+            response,
+            evidence_url="https://www.buscape.com.br/celular/item",
+            product_id="13994200",
+            page=BUSCAPE_MAX_OFFER_PAGES,
+        )
+    )
+
+    assert not [result for result in results if isinstance(result, Request)]
+
+
+def test_zoom_skip_log_names_the_retailer_lost_to_an_unreadable_colour() -> None:
+    # A retailer whose title does not name a catalog colour is dropped on
+    # purpose — variant identity is never relaxed. The point here is that the
+    # drop stops being invisible.
+    offers = [
+        {
+            "@type": "Offer",
+            "id": "offer-1",
+            "name": "Apple iPhone 17 Pro Max (256 GB) - Prateado",
+            "offeredBy": "Amazon",
+            "price": "9757.11",
+            "priceCurrency": "BRL",
+        },
+        {
+            "@type": "Offer",
+            "id": "offer-2",
+            "name": "Apple iPhone 17 Pro Max 256 GB",
+            "offeredBy": "Loja Sem Cor",
+            "price": "9899.00",
+            "priceCurrency": "BRL",
+        },
+    ]
+    payload = {
+        "@type": "Product",
+        "name": "iPhone 17 Pro Max 256GB",
+        "offers": {"@type": "AggregateOffer", "offers": offers},
+    }
+    skips = SkipLog()
+
+    listings = extract_zoom_listings(
+        _html(payload),
+        "https://www.zoom.com.br/celular/celular-apple-iphone-17-pro-max-256gb",
+        skips=skips,
+    )
+
+    assert [item.seller_display_name for item in listings] == ["Amazon"]
+    assert len(skips.entries) == 1
+    # The recorded title is what a human needs to grow _MODEL_COLOR_ALIASES,
+    # and the reason has to name the field that failed.
+    assert skips.entries[0].raw_title == "Apple iPhone 17 Pro Max 256 GB"
+    assert "color" in skips.entries[0].reason
+
+
+def test_zoom_spider_persists_each_skipped_entry_as_a_rejection() -> None:
+    payload = {
+        "@type": "Product",
+        "name": "iPhone 17 Pro Max 256GB",
+        "offers": {
+            "@type": "AggregateOffer",
+            "offers": [
+                {
+                    "@type": "Offer",
+                    "id": "offer-1",
+                    "name": "Apple iPhone 17 Pro Max (256 GB) - Prateado",
+                    "offeredBy": "Amazon",
+                    "price": "9757.11",
+                    "priceCurrency": "BRL",
+                },
+                {
+                    "@type": "Offer",
+                    "id": "offer-2",
+                    "name": "Apple iPhone 17 Pro Max 256 GB",
+                    "offeredBy": "Loja Sem Cor",
+                    "price": "9899.00",
+                    "priceCurrency": "BRL",
+                },
+            ],
+        },
+    }
+    url = "https://www.zoom.com.br/celular/celular-apple-iphone-17-pro-max-256gb"
+    response = TextResponse(
+        url=url, request=Request(url), body=_html(payload).encode(), encoding="utf-8"
+    )
+    spider = ZoomSpider(source_id="source-1", run_id="run-1", base_url="https://www.zoom.com.br/")
+
+    results = list(spider.parse_product(response))
+
+    rejections = [item for item in results if isinstance(item, ListingRejectedItem)]
+    assert len(results) == 2
+    assert len(rejections) == 1
+    assert rejections[0]["stage"] == RejectionStage.EXTRACTION
+    assert rejections[0]["url"] == url
+
+
+def test_buscape_skip_log_reaches_the_spider_with_the_evidence_url() -> None:
+    hits = [
+        _buscape_hit(1),
+        {
+            "offer_id": "offer-2",
+            "name": "Smartphone Samsung Galaxy S26+ 256GB",
+            "seller": {"id": "9", "name": "Sem Cor"},
+            "sales_condition": {"price": 4599, "stock": 2},
+            "condition": "NEW",
+        },
+    ]
+    evidence_url = "https://www.buscape.com.br/celular/item"
+    spider = BuscapeSpider(
+        source_id="source-1", run_id="run-1", base_url="https://www.buscape.com.br/"
+    )
+
+    results = list(
+        spider.parse_offers(
+            _buscape_offer_response(hits, page=1),
+            evidence_url=evidence_url,
+            product_id="13994200",
+            page=1,
+        )
+    )
+
+    rejections = [item for item in results if isinstance(item, ListingRejectedItem)]
+    assert len(rejections) == 1
+    # Buscapé's offers arrive from a different host than the commercial page;
+    # the rejection has to point at the auditable evidence document.
+    assert rejections[0]["url"] == evidence_url
+
+
+@pytest.mark.parametrize(
+    ("title", "expected"),
+    [
+        ("iPhone 17 Pro Max - 1 TB - Laranja", "Laranja-Cósmico"),
+        ("iPhone 17 Pro Max (512GB) Laranja-cósmica, Tela de 6,9", "Laranja-Cósmico"),
+        ("Iphone 17 Pro Max 256gb Apple Blue", "Azul-Intenso"),
+        # "blue" must not be found inside "Bluetooth".
+        ("iPhone 17 Pro Max 256GB Bluetooth 5.3 Prateado", "Prateado"),
+    ],
+)
+def test_colour_aliases_recover_retailers_lost_to_spelling(title: str, expected: str) -> None:
+    assert _color_from_text(title, model="iphone_17_pro_max") == expected
+
+
+def test_a_title_without_any_colour_is_still_refused() -> None:
+    # Variant identity is never relaxed to fill coverage: a listing that names
+    # no colour stays out, quarantined rather than guessed.
+    with pytest.raises(ExtractionError, match="supported color"):
+        _color_from_text(
+            "Celular Samsung Galaxy S25 Ultra 5G, 256GB, 12GB RAM", model="galaxy_s25_ultra"
+        )

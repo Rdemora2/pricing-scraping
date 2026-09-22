@@ -48,6 +48,22 @@ class RunStatus(StrEnum):
     PARTIAL = "partial"
 
 
+class RejectionStage(StrEnum):
+    """Where a scraped listing stopped short of becoming a comparable offer.
+
+    ACCESS covers a page the source refused to serve; EXTRACTION covers a page
+        or entry the adapter refused to read as an offer; MATCHING covers an offer
+        that was read but corresponds to no canonical variant. Together they make
+        the three ways a run loses a retailer distinguishable: the source blocked
+        us, the source changed shape, or our catalog does not describe what the
+        source is selling.
+    """
+
+    ACCESS = "access"
+    EXTRACTION = "extraction"
+    MATCHING = "matching"
+
+
 class EvidenceType(StrEnum):
     DISCOVERY_PAGE = "discovery_page"
     LISTING_PAGE = "listing_page"

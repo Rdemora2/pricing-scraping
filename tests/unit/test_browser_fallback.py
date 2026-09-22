@@ -10,6 +10,7 @@ from pricing_intel.collection.browser import (
     has_browser_fallback,
     install_browser_request_policy,
 )
+from pricing_intel.collection.items import ListingRejectedItem
 from pricing_intel.collection.spiders.retail import (
     AmazonSpider,
     AmericanasSpider,
@@ -17,6 +18,22 @@ from pricing_intel.collection.spiders.retail import (
     IPlaceSpider,
     KabumSpider,
 )
+from pricing_intel.domain.enums import RejectionStage
+
+
+def _assert_blocked_without_browser(results: list, *, status: int) -> None:
+    """A refused page escalates nothing and is recorded as an access loss.
+
+    The invariant these tests protect is that a block never reaches the
+    browser — not that the run forgets the block happened. The refusal is
+    persisted so a source that starts answering 403 is visible as lost
+    retailer depth rather than as an empty result.
+    """
+    assert not [item for item in results if isinstance(item, Request)]
+    rejections = [item for item in results if isinstance(item, ListingRejectedItem)]
+    assert len(rejections) == 1
+    assert rejections[0]["stage"] == RejectionStage.ACCESS
+    assert str(status) in rejections[0]["reason"]
 
 
 @dataclass
@@ -190,7 +207,7 @@ def test_amazon_blocked_product_page_does_not_escalate_to_browser(status: int) -
     spider = _spider()
     response = _blocked_response(status, "https://www.amazon.com.br/example/dp/B0GQW2J4SK")
 
-    assert list(spider.parse_product(response)) == []
+    _assert_blocked_without_browser(list(spider.parse_product(response)), status=status)
 
 
 @pytest.mark.parametrize("status", [401, 403, 429])
@@ -205,7 +222,7 @@ def test_carrefour_blocked_product_page_does_not_escalate_to_browser(status: int
     )
     response = _blocked_response(status, "https://www.carrefour.com.br/produto/example")
 
-    assert list(spider.parse_product(response)) == []
+    _assert_blocked_without_browser(list(spider.parse_product(response)), status=status)
 
 
 @pytest.mark.parametrize("status", [401, 403, 429])
@@ -220,7 +237,7 @@ def test_americanas_blocked_product_page_does_not_escalate_to_browser(status: in
     )
     response = _blocked_response(status, "https://www.americanas.com.br/produto/example/p")
 
-    assert list(spider.parse_product(response)) == []
+    _assert_blocked_without_browser(list(spider.parse_product(response)), status=status)
 
 
 @pytest.mark.parametrize("status", [401, 403, 429])
@@ -230,7 +247,9 @@ def test_kabum_blocked_search_does_not_escalate_to_browser(status: int) -> None:
         status, "https://www.kabum.com.br/busca/apple-iphone-17-pro-max-512gb"
     )
 
-    assert list(spider.parse_search(response, storage_gb="512")) == []
+    _assert_blocked_without_browser(
+        list(spider.parse_search(response, storage_gb="512")), status=status
+    )
 
 
 def test_settings_never_allow_error_responses_to_reach_spiders() -> None:
@@ -461,7 +480,9 @@ def test_iplace_http_success_does_not_schedule_browser() -> None:
 def test_iplace_blocked_status_does_not_escalate_to_browser(status: int) -> None:
     spider = _iplace_spider()
 
-    assert list(spider.parse_product(_iplace_response(status=status))) == []
+    _assert_blocked_without_browser(
+        list(spider.parse_product(_iplace_response(status=status))), status=status
+    )
 
 
 def test_iplace_browser_evidence_is_explicit_in_extractor_name() -> None:

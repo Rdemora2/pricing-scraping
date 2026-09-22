@@ -15,11 +15,14 @@ from scrapy_playwright.page import PageMethod
 
 from pricing_intel.collection.browser import browser_request_meta
 from pricing_intel.collection.extraction import ExtractionError
-from pricing_intel.collection.items import ListingItem
+from pricing_intel.collection.items import ListingItem, ListingRejectedItem
 from pricing_intel.collection.network_policy import Resolver, validate_reference_url
 from pricing_intel.collection.real_sources import (
+    BUSCAPE_MAX_OFFER_PAGES,
+    BUSCAPE_OFFER_PAGE_SIZE,
     BuscapeOfferParser,
     RetailListing,
+    SkipLog,
     TwoAFinderMarkdownParser,
     extract_amazon_listing,
     extract_americanas_listing,
@@ -32,6 +35,7 @@ from pricing_intel.collection.real_sources import (
     extract_zoom_listings,
 )
 from pricing_intel.discovery.urls import canonicalize
+from pricing_intel.domain.enums import RejectionStage
 
 
 class _RetailSpider(scrapy.Spider):
@@ -145,6 +149,44 @@ class _RetailSpider(scrapy.Spider):
             meta=meta,
         )
 
+    def rejection_item(
+        self,
+        *,
+        url: str,
+        reason: str,
+        stage: RejectionStage = RejectionStage.EXTRACTION,
+        raw_title: str = "",
+        attributes: dict[str, str] | None = None,
+    ) -> ListingRejectedItem:
+        """Record something this run saw and did not turn into an offer.
+
+        Every one of these is a retailer that will not reach a comparison.
+        Persisting them separates "the source has nothing" from "we dropped
+        it", which a log line inside a subprocess cannot answer.
+        """
+        return ListingRejectedItem(
+            source_id=self.source_id,
+            run_id=self.run_id,
+            stage=stage,
+            reason=reason,
+            url=url,
+            raw_title=raw_title,
+            attributes=attributes or {},
+        )
+
+    def refused_response(self, response: scrapy.http.Response, *, what: str) -> ListingRejectedItem:
+        self.logger.error("%s refused with HTTP %s", what, response.status)
+        return self.rejection_item(
+            url=response.url,
+            reason=f"{what} refused with HTTP {response.status}",
+            stage=RejectionStage.ACCESS,
+        )
+
+    def skipped_items(self, skips: SkipLog, *, url: str):
+        """Turn per-entry extractor skips into persisted rejections."""
+        for entry in skips.entries:
+            yield self.rejection_item(url=url, reason=entry.reason, raw_title=entry.raw_title)
+
     def parse_product(self, response: scrapy.http.Response):
         raise NotImplementedError
 
@@ -244,28 +286,37 @@ class IPlaceSpider(_RetailSpider):
 
     def parse_product(self, response: scrapy.http.Response):
         if response.status != 200:
-            self.logger.error("iPlace product page refused with HTTP %s", response.status)
+            yield self.refused_response(response, what="iPlace product page")
             return
+        skips = SkipLog()
         try:
-            listings = extract_iplace_listings(self.response_text(response), response.url)
+            listings = extract_iplace_listings(
+                self.response_text(response), response.url, skips=skips
+            )
         except ExtractionError as exc:
             self.logger.warning("iPlace HTTP extraction failed; trying browser: %s", exc)
             yield self.browser_fallback_request(response.url)
             return
         for listing in listings:
             yield self.listing_item(response, listing)
+        yield from self.skipped_items(skips, url=response.url)
 
     def parse_browser_product(self, response: scrapy.http.Response):
         if response.status != 200:
-            self.logger.error("iPlace browser fallback refused with HTTP %s", response.status)
+            yield self.refused_response(response, what="iPlace browser fallback")
             return
+        skips = SkipLog()
         try:
-            listings = extract_iplace_listings(self.response_text(response), response.url)
+            listings = extract_iplace_listings(
+                self.response_text(response), response.url, skips=skips
+            )
         except ExtractionError as exc:
             self.logger.error("iPlace browser fallback failed: %s", exc)
+            yield self.rejection_item(url=response.url, reason=str(exc))
             return
         for listing in listings:
             yield self.listing_item(response, listing, browser_fallback=True)
+        yield from self.skipped_items(skips, url=response.url)
 
 
 class AmazonSpider(_RetailSpider):
@@ -289,7 +340,7 @@ class AmazonSpider(_RetailSpider):
 
     def parse_search(self, response: scrapy.http.Response, *, storage_gb: str):
         if response.status != 200:
-            self.logger.error("Amazon search refused with HTTP %s", response.status)
+            yield self.refused_response(response, what="Amazon search")
             return
         try:
             self.response_text(response)
@@ -307,6 +358,10 @@ class AmazonSpider(_RetailSpider):
             yield from requests
         elif response.meta.get("playwright"):
             self.logger.error("Amazon rendered search returned no canonical products")
+            yield self.rejection_item(
+                url=response.url,
+                reason="rendered search page exposed no canonical product link",
+            )
         else:
             yield self.browser_search_request(
                 response,
@@ -317,7 +372,7 @@ class AmazonSpider(_RetailSpider):
 
     def parse_product(self, response: scrapy.http.Response):
         if response.status != 200:
-            self.logger.error("Amazon product page refused with HTTP %s", response.status)
+            yield self.refused_response(response, what="Amazon product page")
             return
         try:
             listing = extract_amazon_listing(self.response_text(response), response.url)
@@ -332,6 +387,7 @@ class AmazonSpider(_RetailSpider):
             listing = extract_amazon_listing(self.response_text(response), response.url)
         except ExtractionError as exc:
             self.logger.error("Amazon browser fallback failed: %s", exc)
+            yield self.rejection_item(url=response.url, reason=str(exc))
             return
         yield self.listing_item(response, listing, browser_fallback=True)
 
@@ -354,7 +410,7 @@ class CarrefourSpider(_RetailSpider):
 
     def parse_search(self, response: scrapy.http.Response, *, storage_gb: str):
         if response.status != 200:
-            self.logger.error("Carrefour search refused with HTTP %s", response.status)
+            yield self.refused_response(response, what="Carrefour search")
             return
         try:
             self.response_text(response)
@@ -369,7 +425,7 @@ class CarrefourSpider(_RetailSpider):
 
     def parse_product(self, response: scrapy.http.Response):
         if response.status != 200:
-            self.logger.error("Carrefour product page refused with HTTP %s", response.status)
+            yield self.refused_response(response, what="Carrefour product page")
             return
         try:
             listing = extract_carrefour_listing(self.response_text(response), response.url)
@@ -384,6 +440,7 @@ class CarrefourSpider(_RetailSpider):
             listing = extract_carrefour_listing(self.response_text(response), response.url)
         except ExtractionError as exc:
             self.logger.error("Carrefour browser fallback failed: %s", exc)
+            yield self.rejection_item(url=response.url, reason=str(exc))
             return
         yield self.listing_item(response, listing, browser_fallback=True)
 
@@ -407,7 +464,7 @@ class AmericanasSpider(_RetailSpider):
 
     def parse_search(self, response: scrapy.http.Response, *, storage_gb: str):
         if response.status != 200:
-            self.logger.error("Americanas search refused with HTTP %s", response.status)
+            yield self.refused_response(response, what="Americanas search")
             return
         try:
             self.response_text(response)
@@ -425,6 +482,10 @@ class AmericanasSpider(_RetailSpider):
             yield from requests
         elif response.meta.get("playwright"):
             self.logger.error("Americanas rendered search returned no canonical products")
+            yield self.rejection_item(
+                url=response.url,
+                reason="rendered search page exposed no canonical product link",
+            )
         else:
             yield self.browser_search_request(
                 response,
@@ -435,7 +496,7 @@ class AmericanasSpider(_RetailSpider):
 
     def parse_product(self, response: scrapy.http.Response):
         if response.status != 200:
-            self.logger.error("Americanas product page refused with HTTP %s", response.status)
+            yield self.refused_response(response, what="Americanas product page")
             return
         try:
             listing = extract_americanas_listing(self.response_text(response), response.url)
@@ -450,6 +511,7 @@ class AmericanasSpider(_RetailSpider):
             listing = extract_americanas_listing(self.response_text(response), response.url)
         except ExtractionError as exc:
             self.logger.error("Americanas browser fallback failed: %s", exc)
+            yield self.rejection_item(url=response.url, reason=str(exc))
             return
         yield self.listing_item(response, listing, browser_fallback=True)
 
@@ -464,6 +526,7 @@ class FastShopSpider(_RetailSpider):
             listing = extract_fast_shop_listing(response.text, response.url)
         except ExtractionError as exc:
             self.logger.error("Fast Shop extraction failed: %s", exc)
+            yield self.rejection_item(url=response.url, reason=str(exc))
             return
         yield self.listing_item(response, listing)
 
@@ -492,7 +555,7 @@ class KabumSpider(_RetailSpider):
 
     def parse_search(self, response: scrapy.http.Response, *, storage_gb: str):
         if response.status != 200:
-            self.logger.error("KaBuM! search refused with HTTP %s", response.status)
+            yield self.refused_response(response, what="KaBuM! search")
             return
         requests = list(
             self.product_requests_from_search(
@@ -506,6 +569,10 @@ class KabumSpider(_RetailSpider):
             return
         if response.meta.get("playwright"):
             self.logger.error("KaBuM! rendered search returned no canonical products")
+            yield self.rejection_item(
+                url=response.url,
+                reason="rendered search page exposed no canonical product link",
+            )
             return
         meta = browser_request_meta(
             allowed_hosts=self.browser_allowed_domains,
@@ -527,6 +594,7 @@ class KabumSpider(_RetailSpider):
             listing = extract_kabum_listing(response.text, response.url)
         except ExtractionError as exc:
             self.logger.error("KaBuM! extraction failed: %s", exc)
+            yield self.rejection_item(url=response.url, reason=str(exc))
             return
         yield self.listing_item(response, listing)
 
@@ -549,13 +617,16 @@ class SamsungShopSpider(_RetailSpider):
         )
 
     def parse_product(self, response: scrapy.http.Response):
+        skips = SkipLog()
         try:
-            listings = extract_samsung_shop_listings(response.text, response.url)
+            listings = extract_samsung_shop_listings(response.text, response.url, skips=skips)
         except ExtractionError as exc:
             self.logger.error("Samsung Shop extraction failed: %s", exc)
+            yield self.rejection_item(url=response.url, reason=str(exc))
             return
         for listing in listings:
             yield self.listing_item(response, listing)
+        yield from self.skipped_items(skips, url=response.url)
 
 
 class ZoomSpider(_RetailSpider):
@@ -574,13 +645,16 @@ class ZoomSpider(_RetailSpider):
         yield from self.product_requests_from_search(response, storage_gb=storage_gb)
 
     def parse_product(self, response: scrapy.http.Response):
+        skips = SkipLog()
         try:
-            listings = extract_zoom_listings(response.text, response.url)
+            listings = extract_zoom_listings(response.text, response.url, skips=skips)
         except ExtractionError as exc:
             self.logger.error("Zoom extraction failed: %s", exc)
+            yield self.rejection_item(url=response.url, reason=str(exc))
             return
         for listing in listings:
             yield self.listing_item(response, listing)
+        yield from self.skipped_items(skips, url=response.url)
 
 
 class BondfaroSpider(_RetailSpider):
@@ -603,13 +677,16 @@ class BondfaroSpider(_RetailSpider):
         yield from self.product_requests_from_search(response, storage_gb=storage_gb)
 
     def parse_product(self, response: scrapy.http.Response):
+        skips = SkipLog()
         try:
-            listings = extract_zoom_listings(response.text, response.url)
+            listings = extract_zoom_listings(response.text, response.url, skips=skips)
         except ExtractionError as exc:
             self.logger.error("Bondfaro extraction failed: %s", exc)
+            yield self.rejection_item(url=response.url, reason=str(exc))
             return
         for listing in listings:
             yield self.listing_item(response, listing)
+        yield from self.skipped_items(skips, url=response.url)
 
 
 class TwoAFinderSpider(_RetailSpider):
@@ -624,6 +701,7 @@ class TwoAFinderSpider(_RetailSpider):
             listings = self.parser.parse(response.text, response.url)
         except ExtractionError as exc:
             self.logger.error("2aFinder extraction failed: %s", exc)
+            yield self.rejection_item(url=response.url, reason=str(exc))
             return
         for listing in listings:
             yield self.listing_item(response, listing)
@@ -631,13 +709,14 @@ class TwoAFinderSpider(_RetailSpider):
 
 class BuscapeSpider(_RetailSpider):
     name = "buscape"
-    # Product page + public offer document, plus one robots.txt fetch per host.
     # Four searches, up to MAX_SEARCH_RESULTS_PER_CAPACITY product pages per
-    # capacity (one per matched color) and one offer document per page.
-    custom_settings = {"CLOSESPIDER_PAGECOUNT": 80}  # noqa: RUF012 - Scrapy contract
+    # capacity (one per matched color), up to BUSCAPE_MAX_OFFER_PAGES offer
+    # documents per product page, plus one robots.txt fetch per host:
+    # 4 + 4*8 + 32*3 + 2 = 134. The headroom absorbs redirects.
+    custom_settings = {"CLOSESPIDER_PAGECOUNT": 160}  # noqa: RUF012 - Scrapy contract
     allowed_domains = ("www.buscape.com.br", "api-v1.zoom.com.br")
     extractor_name = "buscape_public_product_offers"
-    extractor_version = "1.0.0"
+    extractor_version = "1.1.0"
     parser = BuscapeOfferParser()
 
     async def start(self):
@@ -647,27 +726,57 @@ class BuscapeSpider(_RetailSpider):
     def parse_search(self, response: scrapy.http.Response, *, storage_gb: str):
         yield from self.product_requests_from_search(response, storage_gb=storage_gb)
 
+    def offer_page_request(
+        self, product_id: str, *, page: int, evidence_url: str
+    ) -> scrapy.Request:
+        api_url = (
+            f"https://api-v1.zoom.com.br/sale-condition/v1/product/{product_id}"
+            f"?order=DEFAULT&page={page}&pageSize={BUSCAPE_OFFER_PAGE_SIZE}"
+            "&resolution=LARGE&affiliateId=1&brand=buscape"
+        )
+        return scrapy.Request(
+            api_url,
+            callback=self.parse_offers,
+            cb_kwargs={
+                "evidence_url": evidence_url,
+                "product_id": product_id,
+                "page": page,
+            },
+        )
+
     def parse_product(self, response: scrapy.http.Response):
         try:
             product_id = self.parser.product_id(response.text)
         except ExtractionError as exc:
             self.logger.error("Buscapé product id extraction failed: %s", exc)
+            yield self.rejection_item(url=response.url, reason=str(exc))
             return
-        api_url = (
-            f"https://api-v1.zoom.com.br/sale-condition/v1/product/{product_id}"
-            "?order=DEFAULT&page=1&pageSize=20&resolution=LARGE&affiliateId=1&brand=buscape"
-        )
-        yield scrapy.Request(
-            api_url,
-            callback=self.parse_offers,
-            cb_kwargs={"evidence_url": response.url},
-        )
+        yield self.offer_page_request(product_id, page=1, evidence_url=response.url)
 
-    def parse_offers(self, response: scrapy.http.Response, *, evidence_url: str):
+    def parse_offers(
+        self,
+        response: scrapy.http.Response,
+        *,
+        evidence_url: str,
+        product_id: str | None = None,
+        page: int = 1,
+    ):
+        """Emit one page of retailer offers and follow the next one when full.
+
+        Only a full page can hide further retailers behind it, so a short page
+        ends pagination. The ceiling stays a hard stop regardless.
+        """
+        skips = SkipLog()
         try:
-            listings = self.parser.parse(response.text, evidence_url)
+            offer_page = self.parser.parse_page(response.text, evidence_url, skips=skips)
         except ExtractionError as exc:
             self.logger.error("Buscapé offer extraction failed: %s", exc)
+            yield self.rejection_item(url=response.url, reason=str(exc))
             return
-        for listing in listings:
+        if not offer_page.listings and page == 1:
+            self.logger.error("Buscapé offer document has no canonical offers")
+        for listing in offer_page.listings:
             yield self.listing_item(response, listing)
+        yield from self.skipped_items(skips, url=evidence_url)
+        if product_id and offer_page.is_full and page < BUSCAPE_MAX_OFFER_PAGES:
+            yield self.offer_page_request(product_id, page=page + 1, evidence_url=evidence_url)

@@ -133,6 +133,16 @@ comercial esteja conectada:
    depende de JavaScript. O adapter Amazon existe, mas permanece candidato após
    a homologação receber HTTP 503 sem produzir observações.
 
+Cada execução informa, além das observações e evidências, quantas listagens
+foram descartadas e em qual etapa: `access` quando a fonte recusou a página,
+`extraction` quando o adaptador não leu a página como oferta, e `matching`
+quando a oferta foi lida mas não corresponde a nenhuma variante canônica. Os
+descartes ficam em `listing_rejection` com motivo e título bruto. A política
+continua fail-closed — um anúncio que não nomeia a cor segue fora da
+comparação, porque identidade de variante não é relaxada para preencher
+cobertura — mas o custo de falhar fechado passou a ser mensurável, e é o que
+permite distinguir "a fonte não tem oferta" de "nós descartamos".
+
 O fallback de navegador não resolve CAPTCHA, não autentica e não contorna HTTP
 403 — ele só nasce de uma resposta HTTP permitida cuja evidência é insuficiente,
 nunca de um bloqueio. Ele bloqueia imagens, mídia, fontes e hosts não revisados; sua origem fica
@@ -206,7 +216,7 @@ Variáveis principais:
 | --- | --- | --- |
 | `GET` | `/sources` | lista fontes habilitadas |
 | `POST` | `/sources/{source_id}/collect` | pesquisa o `product_id` informado na fonte e cria ou reutiliza uma coleta idempotente |
-| `GET` | `/runs/{run_id}` | acompanha estado e estatísticas |
+| `GET` | `/runs/{run_id}` | acompanha estado e estatísticas, incluindo o funil de descartes |
 | `GET` | `/products` | lista produtos canônicos |
 | `GET` | `/products/{product_id}/variants` | lista variantes |
 | `GET` | `/products/{product_id}/intelligence` | consolida inteligência por armazenamento e cor |
@@ -256,6 +266,15 @@ varejistas e cobertura `12/12`: as três cores canônicas de `256 GB`, `512 GB`,
 `1 TB` e `2 TB` passaram a ter evidência. A diversidade por configuração exata
 variou de `3` a `11` varejistas; portanto a meta de 6–8 ainda não é declarada
 como universalmente atingida.
+
+Em `2026-09-22`, a paginação do documento público de ofertas do Buscapé e a
+correção de aliases de cor mudaram essa escala. O Galaxy S25 Ultra, que estava
+preso em `20` observações por bater no teto de ofertas de agregador, passou a
+`29`. O iPhone 17 Pro Max passou a registrar, **em uma única fonte**, cobertura
+`12/12`, `56` ofertas e `17` varejistas distintos — o que a execução de
+referência anterior só alcançava somando cinco fontes. A diversidade por
+configuração exata continua variando de `3` a `11` varejistas nessa fonte
+isolada, então a meta de 6–8 segue sem ser declarada universalmente atingida.
 
 ## Inteligência por aparelho
 
@@ -314,6 +333,13 @@ preservar histórico de coletas.
 - Mercado Livre ainda exige homologação de sua integração oficial. Sem essa
   conexão, o sistema continua operando com os scrapers habilitados; Casas Bahia
   e Ponto permanecem candidatos a adaptadores diretos dedicados;
+- Carrefour continua candidata por dois caminhos medidos, não por suposição: o
+  `robots.txt` proíbe `/busca/`, rota do coletor orientado por aparelho, e o
+  sitemap que ele publica não é navegável por aparelho — `5305` documentos no
+  índice, `5290` deles com `1000` URLs cada, cerca de `5,29` milhões de URLs
+  sem ordenação por marca ou categoria. Navegação por categoria, que o
+  `robots.txt` não proíbe, é a próxima rota candidata e ainda não foi
+  homologada;
 - Amazon permanece candidata: o adapter de busca está coberto por testes, mas a
   execução completa recebeu HTTP 503 e não produziu evidência. Bondfaro foi
   rebaixado porque o `robots.txt` recusou a busca; Fast Shop também não autoriza
