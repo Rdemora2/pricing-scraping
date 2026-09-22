@@ -1,8 +1,8 @@
 # Estado de execução
 
 **Atualizado em:** `2026-09-22`
-**Estado global:** `IN_REVIEW`
-**Unidade ativa:** `INC-13` — corrige teto de cores por busca de capacidade (3→8), validado com execução real do pipeline completo
+**Estado global:** `VERIFIED`
+**Unidade ativa:** `INC-13` — corrige teto de cores por busca de capacidade (3→8); revisão funcional independente concluída, PR #15 mesclado (squash, `341d9e8`), checks remotos verdes
 
 O roadmap conclui o laboratório e avança o portal local de inteligência de
 preços com fontes reais. A entrega permanece limitada ao ambiente local; não
