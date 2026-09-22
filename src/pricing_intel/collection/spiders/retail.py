@@ -18,6 +18,8 @@ from pricing_intel.collection.extraction import ExtractionError
 from pricing_intel.collection.items import ListingItem
 from pricing_intel.collection.network_policy import Resolver, validate_reference_url
 from pricing_intel.collection.real_sources import (
+    BUSCAPE_MAX_OFFER_PAGES,
+    BUSCAPE_OFFER_PAGE_SIZE,
     BuscapeOfferParser,
     RetailListing,
     TwoAFinderMarkdownParser,
@@ -631,13 +633,14 @@ class TwoAFinderSpider(_RetailSpider):
 
 class BuscapeSpider(_RetailSpider):
     name = "buscape"
-    # Product page + public offer document, plus one robots.txt fetch per host.
     # Four searches, up to MAX_SEARCH_RESULTS_PER_CAPACITY product pages per
-    # capacity (one per matched color) and one offer document per page.
-    custom_settings = {"CLOSESPIDER_PAGECOUNT": 80}  # noqa: RUF012 - Scrapy contract
+    # capacity (one per matched color), up to BUSCAPE_MAX_OFFER_PAGES offer
+    # documents per product page, plus one robots.txt fetch per host:
+    # 4 + 4*8 + 32*3 + 2 = 134. The headroom absorbs redirects.
+    custom_settings = {"CLOSESPIDER_PAGECOUNT": 160}  # noqa: RUF012 - Scrapy contract
     allowed_domains = ("www.buscape.com.br", "api-v1.zoom.com.br")
     extractor_name = "buscape_public_product_offers"
-    extractor_version = "1.0.0"
+    extractor_version = "1.1.0"
     parser = BuscapeOfferParser()
 
     async def start(self):
@@ -647,27 +650,53 @@ class BuscapeSpider(_RetailSpider):
     def parse_search(self, response: scrapy.http.Response, *, storage_gb: str):
         yield from self.product_requests_from_search(response, storage_gb=storage_gb)
 
+    def offer_page_request(
+        self, product_id: str, *, page: int, evidence_url: str
+    ) -> scrapy.Request:
+        api_url = (
+            f"https://api-v1.zoom.com.br/sale-condition/v1/product/{product_id}"
+            f"?order=DEFAULT&page={page}&pageSize={BUSCAPE_OFFER_PAGE_SIZE}"
+            "&resolution=LARGE&affiliateId=1&brand=buscape"
+        )
+        return scrapy.Request(
+            api_url,
+            callback=self.parse_offers,
+            cb_kwargs={
+                "evidence_url": evidence_url,
+                "product_id": product_id,
+                "page": page,
+            },
+        )
+
     def parse_product(self, response: scrapy.http.Response):
         try:
             product_id = self.parser.product_id(response.text)
         except ExtractionError as exc:
             self.logger.error("Buscapé product id extraction failed: %s", exc)
             return
-        api_url = (
-            f"https://api-v1.zoom.com.br/sale-condition/v1/product/{product_id}"
-            "?order=DEFAULT&page=1&pageSize=20&resolution=LARGE&affiliateId=1&brand=buscape"
-        )
-        yield scrapy.Request(
-            api_url,
-            callback=self.parse_offers,
-            cb_kwargs={"evidence_url": response.url},
-        )
+        yield self.offer_page_request(product_id, page=1, evidence_url=response.url)
 
-    def parse_offers(self, response: scrapy.http.Response, *, evidence_url: str):
+    def parse_offers(
+        self,
+        response: scrapy.http.Response,
+        *,
+        evidence_url: str,
+        product_id: str | None = None,
+        page: int = 1,
+    ):
+        """Emit one page of retailer offers and follow the next one when full.
+
+        Only a full page can hide further retailers behind it, so a short page
+        ends pagination. The ceiling stays a hard stop regardless.
+        """
         try:
-            listings = self.parser.parse(response.text, evidence_url)
+            offer_page = self.parser.parse_page(response.text, evidence_url)
         except ExtractionError as exc:
             self.logger.error("Buscapé offer extraction failed: %s", exc)
             return
-        for listing in listings:
+        if not offer_page.listings and page == 1:
+            self.logger.error("Buscapé offer document has no canonical offers")
+        for listing in offer_page.listings:
             yield self.listing_item(response, listing)
+        if product_id and offer_page.is_full and page < BUSCAPE_MAX_OFFER_PAGES:
+            yield self.offer_page_request(product_id, page=page + 1, evidence_url=evidence_url)

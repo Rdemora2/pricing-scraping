@@ -28,7 +28,20 @@ from pricing_intel.domain.enums import Availability, Condition, PriceBasis
 from pricing_intel.domain.models import PaymentTerms, ShippingTerms
 
 MAX_PRODUCT_VARIANTS = 24
-MAX_AGGREGATE_OFFERS = 20
+# Aggregator product pages publish one entry per competing retailer, and the
+# comparison keeps at most one observation per retailer (see
+# pricing/analysis.py::compare_variant) — so this ceiling caps observable
+# retailer depth directly. It sat at 20 and was demonstrably binding: the
+# INC-09 Buscapé run returned exactly 20 offers for the Galaxy S25 Ultra,
+# the page size it was asking for. 60 clears the realistic Brazilian
+# smartphone retailer population while still bounding a hostile payload.
+MAX_AGGREGATE_OFFERS = 60
+
+# Buscapé serves its public offer document in fixed-size pages. Reading only
+# page 1 is what made the cap above bind; a bounded number of extra pages is
+# the only way to observe the retailers listed after the first twenty.
+BUSCAPE_OFFER_PAGE_SIZE = 20
+BUSCAPE_MAX_OFFER_PAGES = 3
 # Highest color count in the live catalog is 6 (Galaxy S26 family, see
 # scripts/seed_catalog.py); +2 headroom for near-term catalog growth. A
 # capacity search with more color matches than this silently drops the
@@ -543,6 +556,24 @@ class TwoAFinderMarkdownParser:
         return ShippingTerms(known=False)
 
 
+@dataclass(frozen=True, slots=True)
+class BuscapeOfferPage:
+    """One page of Buscapé's public offer document.
+
+    ``hit_count`` is the number of raw entries the page carried, before
+    catalog filtering. Pagination has to key off that rather than off the
+    listings actually kept: a page can be full of offers for other models
+    and still be followed by a page holding the retailer we need.
+    """
+
+    listings: tuple[RetailListing, ...]
+    hit_count: int
+
+    @property
+    def is_full(self) -> bool:
+        return self.hit_count >= BUSCAPE_OFFER_PAGE_SIZE
+
+
 class BuscapeOfferParser:
     """Parse the bounded offer payload used by Buscapé's public product page."""
 
@@ -554,7 +585,12 @@ class BuscapeOfferParser:
             raise ExtractionError("Buscapé page does not expose one unambiguous product id")
         return identifiers.pop()
 
-    def parse(self, payload_text: str, evidence_url: str) -> list[RetailListing]:
+    def parse_page(self, payload_text: str, evidence_url: str) -> BuscapeOfferPage:
+        """Parse one offer page without requiring it to yield canonical offers.
+
+        A malformed document is still an error, but an page that simply holds
+        no catalog match is a legitimate outcome while paginating.
+        """
         try:
             payload = json.loads(payload_text)
         except json.JSONDecodeError as exc:
@@ -570,9 +606,13 @@ class BuscapeOfferParser:
             listing = self._listing(hit, evidence_url)
             if listing is not None:
                 listings.append(listing)
-        if not listings:
+        return BuscapeOfferPage(listings=tuple(listings), hit_count=len(hits))
+
+    def parse(self, payload_text: str, evidence_url: str) -> list[RetailListing]:
+        page = self.parse_page(payload_text, evidence_url)
+        if not page.listings:
             raise ExtractionError("no canonical offers found in Buscapé response")
-        return listings
+        return list(page.listings)
 
     @staticmethod
     def _listing(hit: dict, evidence_url: str) -> RetailListing | None:

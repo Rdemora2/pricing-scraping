@@ -6,6 +6,8 @@ from scrapy.http import Request, TextResponse
 
 from pricing_intel.collection.extraction import ExtractionError, iter_product_json_ld
 from pricing_intel.collection.real_sources import (
+    BUSCAPE_MAX_OFFER_PAGES,
+    BUSCAPE_OFFER_PAGE_SIZE,
     MAX_AGGREGATE_OFFERS,
     BuscapeOfferParser,
     TwoAFinderMarkdownParser,
@@ -795,3 +797,107 @@ def test_buscape_keeps_commercial_and_evidence_urls_distinct() -> None:
     assert item["url"] == product_url
     assert item["evidence_url"] == api_url
     assert item["raw_html"] == payload
+
+
+def _buscape_hit(index: int, *, color: str = "Violeta") -> dict:
+    return {
+        "offer_id": f"offer-{index}",
+        "name": f"Smartphone Samsung Galaxy S26+ 256GB {color}",
+        "seller": {"id": str(index), "name": f"Loja {index}"},
+        "sales_condition": {"price": 8555.07 + index, "stock": 4},
+        "condition": "NEW",
+    }
+
+
+def _buscape_offer_response(hits: list[dict], *, page: int) -> TextResponse:
+    api_url = (
+        "https://api-v1.zoom.com.br/sale-condition/v1/product/13994200"
+        f"?order=DEFAULT&page={page}&pageSize={BUSCAPE_OFFER_PAGE_SIZE}"
+    )
+    body = json.dumps({"hits": hits}).encode()
+    return TextResponse(url=api_url, request=Request(api_url), body=body, encoding="utf-8")
+
+
+def test_buscape_offer_page_reports_raw_hit_count_not_kept_listings() -> None:
+    # A page can be full of offers for other models and still be followed by
+    # one holding a retailer we need, so fullness must key off raw hits.
+    hits = [_buscape_hit(index) for index in range(BUSCAPE_OFFER_PAGE_SIZE - 1)]
+    hits.append({"offer_id": "x", "name": "Capa de silicone", "seller": {}, "sales_condition": {}})
+
+    page = BuscapeOfferParser().parse_page(
+        json.dumps({"hits": hits}), "https://www.buscape.com.br/celular/item"
+    )
+
+    assert page.hit_count == BUSCAPE_OFFER_PAGE_SIZE
+    assert len(page.listings) == BUSCAPE_OFFER_PAGE_SIZE - 1
+    assert page.is_full
+
+
+def test_buscape_follows_the_next_offer_page_while_pages_come_back_full() -> None:
+    spider = BuscapeSpider(
+        source_id="source-1",
+        run_id="run-1",
+        base_url="https://www.buscape.com.br/",
+    )
+    response = _buscape_offer_response(
+        [_buscape_hit(index) for index in range(BUSCAPE_OFFER_PAGE_SIZE)], page=1
+    )
+
+    results = list(
+        spider.parse_offers(
+            response,
+            evidence_url="https://www.buscape.com.br/celular/item",
+            product_id="13994200",
+            page=1,
+        )
+    )
+
+    items = [result for result in results if not isinstance(result, Request)]
+    followed = [result for result in results if isinstance(result, Request)]
+    assert len(items) == BUSCAPE_OFFER_PAGE_SIZE
+    assert len(followed) == 1
+    assert "page=2" in followed[0].url
+    assert followed[0].cb_kwargs["page"] == 2
+
+
+def test_buscape_stops_paginating_on_a_short_page() -> None:
+    spider = BuscapeSpider(
+        source_id="source-1",
+        run_id="run-1",
+        base_url="https://www.buscape.com.br/",
+    )
+    response = _buscape_offer_response([_buscape_hit(1), _buscape_hit(2)], page=1)
+
+    results = list(
+        spider.parse_offers(
+            response,
+            evidence_url="https://www.buscape.com.br/celular/item",
+            product_id="13994200",
+            page=1,
+        )
+    )
+
+    assert not [result for result in results if isinstance(result, Request)]
+
+
+def test_buscape_never_paginates_past_the_configured_ceiling() -> None:
+    spider = BuscapeSpider(
+        source_id="source-1",
+        run_id="run-1",
+        base_url="https://www.buscape.com.br/",
+    )
+    response = _buscape_offer_response(
+        [_buscape_hit(index) for index in range(BUSCAPE_OFFER_PAGE_SIZE)],
+        page=BUSCAPE_MAX_OFFER_PAGES,
+    )
+
+    results = list(
+        spider.parse_offers(
+            response,
+            evidence_url="https://www.buscape.com.br/celular/item",
+            product_id="13994200",
+            page=BUSCAPE_MAX_OFFER_PAGES,
+        )
+    )
+
+    assert not [result for result in results if isinstance(result, Request)]
