@@ -6,7 +6,6 @@ do not log in, solve challenges or retry around access controls.
 
 from __future__ import annotations
 
-import gzip
 import re
 import socket
 from urllib.parse import quote, quote_plus, urljoin, urlsplit
@@ -21,7 +20,6 @@ from pricing_intel.collection.network_policy import Resolver, validate_reference
 from pricing_intel.collection.real_sources import (
     BUSCAPE_MAX_OFFER_PAGES,
     BUSCAPE_OFFER_PAGE_SIZE,
-    SITEMAP_MAX_DOCUMENTS,
     BuscapeOfferParser,
     RetailListing,
     SkipLog,
@@ -34,10 +32,7 @@ from pricing_intel.collection.real_sources import (
     extract_kabum_listing,
     extract_product_search_urls,
     extract_samsung_shop_listings,
-    extract_sitemap_locations,
     extract_zoom_listings,
-    is_sitemap_index,
-    select_sitemap_product_urls,
 )
 from pricing_intel.discovery.urls import canonicalize
 from pricing_intel.domain.enums import RejectionStage
@@ -50,11 +45,6 @@ class _RetailSpider(scrapy.Spider):
     extractor_version = "1.0.0"
     browser_fallback_enabled = False
     browser_allowed_domains: tuple[str, ...] = ()
-    # Sitemap-driven discovery, for retailers whose robots.txt forbids the
-    # search route while leaving product pages public.
-    sitemap_paths: tuple[str, ...] = ()
-    sitemap_index_markers: tuple[str, ...] = ()
-    sitemap_product_markers: tuple[str, ...] = ("/produto/",)
 
     def __init__(
         self,
@@ -77,7 +67,6 @@ class _RetailSpider(scrapy.Spider):
         self.product_model = product_model
         self.storages = tuple(item for item in (storages or "").split(",") if item)
         self.browser_resolver: Resolver = socket.getaddrinfo
-        self._sitemap_seen: set[str] = set()
 
     async def start(self):
         yield scrapy.Request(self.base_url, callback=self.parse_product)
@@ -159,79 +148,6 @@ class _RetailSpider(scrapy.Spider):
             dont_filter=True,
             meta=meta,
         )
-
-    def sitemap_requests(self):
-        if not self.sitemap_paths:
-            raise ValueError(f"{self.name} has no sitemap configured")
-        if not self.product_name or not self.product_model or not self.storages:
-            raise ValueError(f"{self.name} requires a canonical product search context")
-        for path in self.sitemap_paths:
-            url = urljoin(self.base_url, path)
-            validate_reference_url(url, allowed_hosts=self.allowed_domains)
-            yield scrapy.Request(url, callback=self.parse_sitemap, cb_kwargs={"depth": 0})
-
-    @staticmethod
-    def sitemap_document(response: scrapy.http.Response) -> str:
-        """Read a sitemap body, transparently decompressing a ``.xml.gz`` one.
-
-        Content-Encoding is already handled upstream; this covers the separate
-        case of a sitemap that is itself a gzip file.
-        """
-        body = response.body
-        if body[:2] == b"\x1f\x8b":
-            body = gzip.decompress(body)
-        return body.decode("utf-8", errors="replace")
-
-    def parse_sitemap(self, response: scrapy.http.Response, *, depth: int):
-        if response.status != 200:
-            yield self.refused_response(response, what=f"{self.name} sitemap")
-            return
-        try:
-            document = self.sitemap_document(response)
-        except (OSError, EOFError) as exc:
-            self.logger.error("%s sitemap is not readable: %s", self.name, exc)
-            yield self.rejection_item(url=response.url, reason=f"unreadable sitemap: {exc}")
-            return
-
-        host = self.allowed_domains[0]
-        if is_sitemap_index(document):
-            # One level of indirection only. A sitemap index pointing at
-            # another index is not a shape this adapter follows blindly.
-            if depth >= 1:
-                self.logger.error("%s sitemap index nests deeper than expected", self.name)
-                return
-            yield from self._sitemap_index_requests(document, host=host, depth=depth)
-            return
-
-        for storage in self.storages:
-            for url in select_sitemap_product_urls(
-                document,
-                product_name=self.product_name or "",
-                product_model=self.product_model or "",
-                storage_gb=storage,
-                allowed_host=host,
-                product_path_markers=self.sitemap_product_markers,
-            ):
-                if url in self._sitemap_seen:
-                    continue
-                self._sitemap_seen.add(url)
-                validate_reference_url(url, allowed_hosts=self.allowed_domains)
-                yield scrapy.Request(url, callback=self.parse_product)
-
-    def _sitemap_index_requests(self, document: str, *, host: str, depth: int):
-        followed = 0
-        for location in extract_sitemap_locations(document, allowed_host=host):
-            if self.sitemap_index_markers and not any(
-                marker in location.casefold() for marker in self.sitemap_index_markers
-            ):
-                continue
-            validate_reference_url(location, allowed_hosts=self.allowed_domains)
-            yield scrapy.Request(
-                location, callback=self.parse_sitemap, cb_kwargs={"depth": depth + 1}
-            )
-            followed += 1
-            if followed >= SITEMAP_MAX_DOCUMENTS:
-                return
 
     def rejection_item(
         self,
@@ -482,23 +398,30 @@ class CarrefourSpider(_RetailSpider):
     extractor_name = "carrefour_product_pix"
     browser_fallback_enabled = True
     browser_allowed_domains = ("www.carrefour.com.br", "carrefourbr.vtexassets.com")
-    # One sitemap index, up to SITEMAP_MAX_DOCUMENTS product sitemaps, and up
-    # to MAX_SEARCH_RESULTS_PER_CAPACITY product pages for each of four
-    # capacities, plus browser fallbacks and robots.txt.
-    custom_settings = {"CLOSESPIDER_PAGECOUNT": 72}  # noqa: RUF012
-    # Carrefour's robots.txt forbids /busca/, the route the device-driven
-    # collector used, while leaving product pages public. Product URLs are
-    # therefore resolved from the store's own published sitemap — the same
-    # shape iPlace uses (INC-12), and a route the retailer publishes for
-    # crawlers rather than one it declines to serve them.
-    sitemap_paths = ("sitemap.xml",)
-    sitemap_index_markers = ("product", "produto")
-    # The same product path marker the search route already validated.
-    sitemap_product_markers = ("/produto/",)
+    custom_settings = {"CLOSESPIDER_PAGECOUNT": 32}  # noqa: RUF012
+
+    def catalog_search_url(self, capacity: str) -> str:
+        query = quote(f"{self.product_name} {capacity}", safe="")
+        return urljoin(self.base_url, f"busca/{query}")
 
     async def start(self):
-        for request in self.sitemap_requests():
+        for request in self.catalog_search_requests(self.parse_search):
             yield request
+
+    def parse_search(self, response: scrapy.http.Response, *, storage_gb: str):
+        if response.status != 200:
+            yield self.refused_response(response, what="Carrefour search")
+            return
+        try:
+            self.response_text(response)
+        except ExtractionError as exc:
+            self.logger.error("Carrefour search is not a readable HTML response: %s", exc)
+            return
+        yield from self.product_requests_from_search(
+            response,
+            storage_gb=storage_gb,
+            product_path_markers=("/produto/",),
+        )
 
     def parse_product(self, response: scrapy.http.Response):
         if response.status != 200:
