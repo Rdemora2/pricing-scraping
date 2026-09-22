@@ -1,5 +1,14 @@
 # INC-13 — corrigir teto de cores por busca de capacidade
 
+## Readback remoto
+
+- PR: [#15](https://github.com/Rdemora2/pricing-scraping/pull/15).
+- `mergeable: MERGEABLE`, `mergeStateStatus: CLEAN` relidos imediatamente
+  antes da decisão de merge.
+- Método: squash-merge, `--match-head-commit`. Commit resultante em `main`:
+  `341d9e8`.
+- `main` local sincronizada via `python3 .codex/safe_git_sync.py sync-main`.
+
 ## Escopo e aceite
 
 - Branch: `feature/inc-13-expand-color-capacity-discovery`.
