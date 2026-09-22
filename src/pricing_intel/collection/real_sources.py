@@ -80,6 +80,12 @@ class SkipLog:
 # to return.
 MAX_SEARCH_RESULTS_PER_CAPACITY = 8
 
+# Sitemap indexes list many documents; only a bounded number is followed, and
+# only those whose own URL says they carry products. A retailer sitemap is a
+# map of the whole store, and crawling it wholesale is neither polite nor
+# useful when the target is one canonical device.
+SITEMAP_MAX_DOCUMENTS = 5
+
 
 @dataclass(frozen=True, slots=True)
 class RetailListing:
@@ -250,6 +256,54 @@ def _plain_text(fragment: str) -> str:
     return re.sub(r"\s+", " ", html_module.unescape(without_tags)).strip()
 
 
+_SITEMAP_LOC = re.compile(r"<loc>\s*(?P<loc>[^<\s]+)\s*</loc>", re.I)
+_SITEMAP_INDEX = re.compile(r"<sitemapindex\b", re.I)
+
+
+@dataclass(frozen=True, slots=True)
+class _CatalogUrlFilter:
+    """Decides whether one discovered URL is the canonical product we asked for.
+
+    Shared by search-result discovery and sitemap discovery so both surfaces
+    apply the same identity rule: same host, a product path, every token of the
+    canonical name, the exact canonical model and the requested capacity.
+    """
+
+    product_name: str
+    product_model: str
+    storage_gb: str | None
+    host: str
+    product_path_markers: tuple[str, ...]
+
+    def matches(self, candidate: str, *, visible_text: str) -> bool:
+        parsed = urlsplit(candidate)
+        if (parsed.hostname or "").casefold() != self.host:
+            return False
+        if not any(marker in parsed.path for marker in self.product_path_markers):
+            return False
+        haystack = _fold_text(f"{unquote(candidate)} {visible_text}")
+        tokens = set(haystack.split())
+        if not set(_fold_text(self.product_name).split()) <= tokens:
+            return False
+        try:
+            _, discovered_model, _ = _catalog_identity(haystack)
+        except ExtractionError:
+            return False
+        if discovered_model != self.product_model:
+            return False
+        markers = self._storage_markers()
+        return not markers or any(marker in haystack for marker in markers)
+
+    def _storage_markers(self) -> set[str]:
+        if self.storage_gb is None:
+            return set()
+        value = int(self.storage_gb)
+        markers = {f"{value} gb", f"{value}gb"}
+        if value >= 1024:
+            markers |= {f"{value // 1024} tb", f"{value // 1024}tb"}
+        return markers
+
+
 def extract_product_search_urls(
     page_html: str,
     page_url: str,
@@ -267,17 +321,13 @@ def extract_product_search_urls(
     again by the retailer-specific product extractor.
     """
     selector = Selector(text=page_html)
-    expected_product_tokens = set(_fold_text(product_name).split())
-    storage_markers: set[str] = set()
-    if storage_gb is not None:
-        storage_value = int(storage_gb)
-        storage_markers = {
-            f"{storage_value} gb",
-            f"{storage_value}gb",
-            f"{storage_value // 1024} tb" if storage_value >= 1024 else "",
-            f"{storage_value // 1024}tb" if storage_value >= 1024 else "",
-        }
-    source_host = (urlsplit(page_url).hostname or "").casefold()
+    identity = _CatalogUrlFilter(
+        product_name=product_name,
+        product_model=product_model,
+        storage_gb=storage_gb,
+        host=(urlsplit(page_url).hostname or "").casefold(),
+        product_path_markers=product_path_markers,
+    )
     results: list[str] = []
     seen: set[str] = set()
 
@@ -286,28 +336,73 @@ def extract_product_search_urls(
         if not href:
             continue
         candidate = urljoin(page_url, href)
-        parsed = urlsplit(candidate)
-        if (parsed.hostname or "").casefold() != source_host or not any(
-            marker in parsed.path for marker in product_path_markers
-        ):
-            continue
         visible = " ".join(anchor.css("::text").getall())
-        haystack = _fold_text(f"{unquote(candidate)} {visible}")
-        if not expected_product_tokens <= set(haystack.split()):
-            continue
-        try:
-            _, discovered_model, _ = _catalog_identity(haystack)
-        except ExtractionError:
-            continue
-        if discovered_model != product_model:
-            continue
-        if storage_markers and not any(marker and marker in haystack for marker in storage_markers):
+        if not identity.matches(candidate, visible_text=visible):
             continue
         canonical = candidate.split("#", 1)[0]
         if canonical in seen:
             continue
         seen.add(canonical)
         results.append(canonical)
+        if len(results) >= MAX_SEARCH_RESULTS_PER_CAPACITY:
+            break
+    return results
+
+
+def extract_sitemap_locations(document: str, *, allowed_host: str) -> list[str]:
+    """Every same-host ``<loc>`` in a sitemap or sitemap index, in document order.
+
+    Parsed with a narrow regex rather than an XML parser on purpose: the input
+    is a third-party document, and this needs no entity resolution, no DTD and
+    no namespace handling to read a list of URLs.
+    """
+    locations: list[str] = []
+    seen: set[str] = set()
+    for match in _SITEMAP_LOC.finditer(document):
+        location = html_module.unescape(match.group("loc")).strip()
+        parsed = urlsplit(location)
+        if parsed.scheme != "https" or (parsed.hostname or "").casefold() != allowed_host:
+            continue
+        if location in seen:
+            continue
+        seen.add(location)
+        locations.append(location)
+    return locations
+
+
+def is_sitemap_index(document: str) -> bool:
+    return _SITEMAP_INDEX.search(document) is not None
+
+
+def select_sitemap_product_urls(
+    document: str,
+    *,
+    product_name: str,
+    product_model: str,
+    storage_gb: str | None,
+    allowed_host: str,
+    product_path_markers: tuple[str, ...] = ("/produto/",),
+) -> list[str]:
+    """Pick the product pages a sitemap publishes for one canonical capacity.
+
+    A sitemap carries no visible link text, so the URL slug is the only
+    evidence available at selection time — which is why every page selected
+    here is still parsed by the retailer's own product extractor before any
+    offer is recorded. This is the route for retailers whose robots.txt
+    forbids the search path while leaving product pages public.
+    """
+    identity = _CatalogUrlFilter(
+        product_name=product_name,
+        product_model=product_model,
+        storage_gb=storage_gb,
+        host=allowed_host,
+        product_path_markers=product_path_markers,
+    )
+    results: list[str] = []
+    for location in extract_sitemap_locations(document, allowed_host=allowed_host):
+        if not identity.matches(location, visible_text=""):
+            continue
+        results.append(location)
         if len(results) >= MAX_SEARCH_RESULTS_PER_CAPACITY:
             break
     return results

@@ -1,8 +1,9 @@
+import gzip
 import json
 from decimal import Decimal
 
 import pytest
-from scrapy.http import Request, TextResponse
+from scrapy.http import Request, Response, TextResponse
 
 from pricing_intel.collection.extraction import ExtractionError, iter_product_json_ld
 from pricing_intel.collection.items import ListingRejectedItem
@@ -10,6 +11,7 @@ from pricing_intel.collection.real_sources import (
     BUSCAPE_MAX_OFFER_PAGES,
     BUSCAPE_OFFER_PAGE_SIZE,
     MAX_AGGREGATE_OFFERS,
+    SITEMAP_MAX_DOCUMENTS,
     BuscapeOfferParser,
     SkipLog,
     TwoAFinderMarkdownParser,
@@ -21,7 +23,10 @@ from pricing_intel.collection.real_sources import (
     extract_kabum_listing,
     extract_product_search_urls,
     extract_samsung_shop_listings,
+    extract_sitemap_locations,
     extract_zoom_listings,
+    is_sitemap_index,
+    select_sitemap_product_urls,
 )
 from pricing_intel.collection.spiders.retail import (
     AmazonSpider,
@@ -549,7 +554,6 @@ async def test_samsung_resolves_product_route_from_canonical_model() -> None:
         AmazonSpider,
         AmericanasSpider,
         BondfaroSpider,
-        CarrefourSpider,
         ZoomSpider,
         BuscapeSpider,
         KabumSpider,
@@ -1019,3 +1023,141 @@ def test_buscape_skip_log_reaches_the_spider_with_the_evidence_url() -> None:
     # Buscapé's offers arrive from a different host than the commercial page;
     # the rejection has to point at the auditable evidence document.
     assert rejections[0]["url"] == evidence_url
+
+
+def _sitemap(locations: list[str]) -> str:
+    entries = "".join(f"<url><loc>{loc}</loc></url>" for loc in locations)
+    return f'<?xml version="1.0"?><urlset>{entries}</urlset>'
+
+
+def _sitemap_index(locations: list[str]) -> str:
+    entries = "".join(f"<sitemap><loc>{loc}</loc></sitemap>" for loc in locations)
+    return f'<?xml version="1.0"?><sitemapindex>{entries}</sitemapindex>'
+
+
+def test_sitemap_selection_keeps_only_the_exact_model_and_capacity() -> None:
+    document = _sitemap(
+        [
+            "https://www.carrefour.com.br/produto/apple-iphone-17-pro-max-256gb",
+            "https://www.carrefour.com.br/produto/apple-iphone-17-pro-256gb",
+            "https://www.carrefour.com.br/produto/apple-iphone-17-pro-max-512gb",
+            "https://www.carrefour.com.br/categoria/celulares",
+            "https://outra-loja.example/produto/apple-iphone-17-pro-max-256gb",
+        ]
+    )
+
+    urls = select_sitemap_product_urls(
+        document,
+        product_name="Apple iPhone 17 Pro Max",
+        product_model="iphone_17_pro_max",
+        storage_gb="256",
+        allowed_host="www.carrefour.com.br",
+    )
+
+    assert urls == ["https://www.carrefour.com.br/produto/apple-iphone-17-pro-max-256gb"]
+
+
+def test_sitemap_locations_reject_foreign_hosts_and_plain_http() -> None:
+    document = _sitemap(
+        [
+            "https://www.carrefour.com.br/produto/a",
+            "http://www.carrefour.com.br/produto/b",
+            "https://attacker.example/produto/c",
+        ]
+    )
+
+    assert extract_sitemap_locations(document, allowed_host="www.carrefour.com.br") == [
+        "https://www.carrefour.com.br/produto/a"
+    ]
+
+
+def test_sitemap_index_is_distinguished_from_a_url_set() -> None:
+    assert is_sitemap_index(_sitemap_index(["https://www.carrefour.com.br/sitemap/product-1.xml"]))
+    assert not is_sitemap_index(_sitemap(["https://www.carrefour.com.br/produto/a"]))
+
+
+def _carrefour_spider() -> CarrefourSpider:
+    return CarrefourSpider(
+        source_id="00000000-0000-0000-0000-000000000001",
+        run_id="00000000-0000-0000-0000-000000000002",
+        base_url="https://www.carrefour.com.br/",
+        product_name="Apple iPhone 17 Pro Max",
+        product_model="iphone_17_pro_max",
+        storages="256,512",
+    )
+
+
+def _xml_response(url: str, body: bytes) -> TextResponse:
+    return TextResponse(url=url, request=Request(url), body=body, encoding="utf-8")
+
+
+def test_carrefour_follows_only_product_sitemaps_and_bounds_how_many() -> None:
+    locations = [f"https://www.carrefour.com.br/sitemap/product-{index}.xml" for index in range(10)]
+    locations.append("https://www.carrefour.com.br/sitemap/blog-posts.xml")
+    response = _xml_response(
+        "https://www.carrefour.com.br/sitemap.xml", _sitemap_index(locations).encode()
+    )
+
+    followed = list(_carrefour_spider().parse_sitemap(response, depth=0))
+
+    assert len(followed) == SITEMAP_MAX_DOCUMENTS
+    assert all("product-" in request.url for request in followed)
+    assert all(request.cb_kwargs["depth"] == 1 for request in followed)
+
+
+def test_carrefour_stops_at_one_level_of_sitemap_indirection() -> None:
+    response = _xml_response(
+        "https://www.carrefour.com.br/sitemap/product-0.xml",
+        _sitemap_index(["https://www.carrefour.com.br/sitemap/product-nested.xml"]).encode(),
+    )
+
+    assert list(_carrefour_spider().parse_sitemap(response, depth=1)) == []
+
+
+def test_carrefour_resolves_each_product_page_once_across_capacities() -> None:
+    document = _sitemap(
+        [
+            "https://www.carrefour.com.br/produto/apple-iphone-17-pro-max-256gb",
+            "https://www.carrefour.com.br/produto/apple-iphone-17-pro-max-512gb",
+            "https://www.carrefour.com.br/produto/apple-iphone-17-pro-256gb",
+        ]
+    )
+    spider = _carrefour_spider()
+    response = _xml_response(
+        "https://www.carrefour.com.br/sitemap/product-0.xml", document.encode()
+    )
+
+    requests = list(spider.parse_sitemap(response, depth=1))
+
+    assert [request.url for request in requests] == [
+        "https://www.carrefour.com.br/produto/apple-iphone-17-pro-max-256gb",
+        "https://www.carrefour.com.br/produto/apple-iphone-17-pro-max-512gb",
+    ]
+    assert all(request.callback == spider.parse_product for request in requests)
+    # A second document repeating the same URLs must not requeue them.
+    assert list(spider.parse_sitemap(response, depth=1)) == []
+
+
+def test_carrefour_reads_a_gzipped_sitemap() -> None:
+    document = _sitemap(["https://www.carrefour.com.br/produto/apple-iphone-17-pro-max-256gb"])
+    response = _xml_response(
+        "https://www.carrefour.com.br/sitemap/product-0.xml.gz",
+        gzip.compress(document.encode()),
+    )
+
+    requests = list(_carrefour_spider().parse_sitemap(response, depth=1))
+
+    assert [request.url for request in requests] == [
+        "https://www.carrefour.com.br/produto/apple-iphone-17-pro-max-256gb"
+    ]
+
+
+def test_carrefour_records_a_refused_sitemap_as_an_access_loss() -> None:
+    url = "https://www.carrefour.com.br/sitemap.xml"
+    response = Response(url=url, request=Request(url), status=403)
+
+    results = list(_carrefour_spider().parse_sitemap(response, depth=0))
+
+    assert len(results) == 1
+    assert results[0]["stage"] == RejectionStage.ACCESS
+    assert "403" in results[0]["reason"]

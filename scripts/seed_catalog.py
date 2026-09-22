@@ -47,9 +47,11 @@ SOURCES = (
         base_url="https://www.carrefour.com.br/",
         kind="real",
         adapter_name="carrefour",
-        # Product pages remain extractable, but the retailer currently forbids
-        # the source-root search route in robots.txt. Keep the adapter visible
-        # without exposing an execution that cannot discover products safely.
+        # robots.txt forbids /busca/, so the collector no longer uses it:
+        # product pages are resolved from the store's own published sitemap
+        # (INC-14), the route Carrefour publishes for crawlers. Stays a
+        # candidate until a real run through the full pipeline produces
+        # persisted observations — a passing fixture test is not evidence.
         status="candidate",
     ),
     SeedSource(

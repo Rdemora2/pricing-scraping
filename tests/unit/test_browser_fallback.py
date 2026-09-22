@@ -351,7 +351,9 @@ def test_js_catalog_search_has_one_bounded_browser_fallback(
     assert page_method.args == (wait_selector,)
 
 
-def test_carrefour_empty_search_does_not_escalate_to_browser() -> None:
+def test_carrefour_never_requests_the_route_its_robots_txt_forbids() -> None:
+    # Carrefour's robots.txt disallows /busca/. Product discovery moved to the
+    # store's published sitemap, so no request may target the search route.
     spider = CarrefourSpider(
         source_id="00000000-0000-0000-0000-000000000001",
         run_id="00000000-0000-0000-0000-000000000002",
@@ -360,12 +362,11 @@ def test_carrefour_empty_search_does_not_escalate_to_browser() -> None:
         product_model="iphone_16",
         storages="128",
     )
-    request = Request("https://www.carrefour.com.br/busca/Apple%20iPhone%2016%20128GB")
-    response = TextResponse(
-        url=request.url, request=request, body=b"<main></main>", encoding="utf-8"
-    )
 
-    assert list(spider.parse_search(response, storage_gb="128")) == []
+    requests = list(spider.sitemap_requests())
+
+    assert [request.url for request in requests] == ["https://www.carrefour.com.br/sitemap.xml"]
+    assert not hasattr(spider, "parse_search")
 
 
 def test_rendered_amazon_search_follows_exact_model_and_capacity() -> None:
