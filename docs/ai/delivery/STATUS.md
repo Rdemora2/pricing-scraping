@@ -182,6 +182,39 @@ origem da dependência Playwright. O runtime desta tarefa proíbe delegar um nov
 revisor; portanto esse parecer não é registrado como independente e o merge
 permanece sob gate externo.
 
+O `INC-14` atacou profundidade por variante em três frentes, com execução real
+da stack local a cada passo. Primeiro, o teto `MAX_AGGREGATE_OFFERS = 20`
+(`collection/real_sources.py`) e a chamada fixa em `page=1&pageSize=20` do
+Buscapé: o INC-09 já registrara exatamente `20` ofertas para o Galaxy S25
+Ultra, que é o próprio `pageSize` pedido. Teto elevado para `60` e paginação
+até três páginas — o mesmo par passou a `29` observações (+45%). Segundo, o
+funil de coleta: nova tabela `listing_rejection` (migração `c3a71f5d8e04`) com
+estágios `access`/`extraction`/`matching`, `SkipLog` nos extratores
+multi-oferta e `ListingRejectedItem` nos spiders. A política fail-closed
+continua idêntica; o que mudou é que a perda passou a ser contável. Terceiro,
+a primeira correção dirigida por essa quarentena: o iPhone 17 Pro Max vinha
+perdendo 5 ofertas por grafia de cor (`Laranja`, `Laranja-cósmica`, `Blue`)
+enquanto `prata` e `azul` já tinham alias na mesma família — omissão nossa, não
+ambiguidade. Com os aliases, o mesmo run foi de `51` observações com `5`
+descartes para `56` com `0`. A leitura consolidada do aparelho chegou a
+cobertura `12/12`, `56` ofertas e `17` varejistas **numa única fonte**, contra
+as cinco fontes que a execução de referência do README precisava para `54`
+ofertas e `17` varejistas. Runtime local: `uv run pytest` `194 passados`,
+`ruff check`, `ruff format --check` e `ty check` verdes; integração `2
+passados`.
+
+Fora do escopo entregue do INC-14: a rota de sitemap do Carrefour foi
+implementada, testada e revertida (`928e771`) depois da medição do documento
+real — `5305` documentos no índice, `5290` deles `product-N.xml` com `1000`
+URLs cada, cerca de `5,29` milhões de URLs sem ordenação, e marcador de produto
+`/p` em vez de `/produto/`. Localizar um aparelho ali exigiria varrer milhões
+de URLs. Sem consumidor viável, a máquina genérica saiu junto para não deixar
+subsistema morto. O `robots.txt` do Carrefour continua proibindo `/busca/`; a
+próxima rota candidata é navegação por categoria, que ele não proíbe. A fonte
+permanece `candidate`. `Titânio Jetblack` do Galaxy S25 Ultra permanece na
+quarentena, sem alias, porque o mapeamento para uma cor do catálogo não é
+verificável localmente — é decisão humana de dado.
+
 ## Estados normativos
 
 `WAITING` → `READY` → `IN_PROGRESS` → `IN_REVIEW` → `VERIFIED`

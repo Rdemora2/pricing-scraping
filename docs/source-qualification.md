@@ -1,6 +1,6 @@
 # Matriz de homologação de fontes
 
-Snapshot local de `2026-09-21`. Esta matriz registra o resultado observável do
+Snapshot local de `2026-09-22`. Esta matriz registra o resultado observável do
 fluxo completo — acesso, descoberta, extração, persistência e readback — e não
 promete disponibilidade futura de terceiros. Uma fonte só fica `enabled` quando
 produz observações reais sem autenticação, CAPTCHA ou contorno de política.
@@ -9,7 +9,7 @@ produz observações reais sem autenticação, CAPTCHA ou contorno de política.
 |---|---|---|
 | Amazon Brasil | candidate | Adapter e busca cobertos; execução final recebeu HTTP 503 e produziu zero observações. |
 | Americanas | enabled | Run `1df5115e-f6d4-4ae2-8f28-67cd410a0868`: 6 observações e 6 evidências. |
-| Carrefour | candidate | Run `3e0388a3-1a1f-4839-baad-ce84f104d670`: a busca do iPhone 16 foi recusada três vezes por `robots.txt`; a política atual proíbe `/busca/`. Runs históricos permanecem auditáveis, mas não justificam nova execução. |
+| Carrefour | candidate | Run `3e0388a3-1a1f-4839-baad-ce84f104d670`: a busca do iPhone 16 foi recusada três vezes por `robots.txt`; a política atual proíbe `/busca/`. Rota alternativa por sitemap avaliada e descartada com medição (INC-14): o `robots.txt` publica `Sitemap: https://www.carrefour.com.br/sitemap.xml` e o índice responde 200, mas traz 5305 documentos, dos quais 5290 são `product-N.xml` com 1000 URLs cada — cerca de 5,29 milhões de URLs sem ordenação por marca ou categoria, e o marcador real de produto é `/p`, não `/produto/`. Localizar um aparelho exigiria varredura de milhões de URLs. Próxima rota candidata: navegação por categoria, que o `robots.txt` não proíbe, ainda sem homologação. |
 | iPlace | candidate | Perfil realista de headers (INC-11) removeu o HTTP 403 anterior visto de fora do Docker; código de extração (INC-12) verificado correto contra páginas reais buscadas do host. Execução real pelo pipeline completo (worker/Postgres) tentada duas vezes: todas as 8 requisições (robots.txt + página de produto) deram `DownloadTimeoutError` de 15s em ambas as tentativas — falha consistente, não passageira. Diagnóstico isolou a causa a uma incompatibilidade de rede entre o cliente Twisted do Scrapy e o edge Akamai do iPlace especificamente de dentro da rede Docker deste ambiente: o mesmo container alcança o Zoom (atrás de CloudFront) normalmente, e `urllib`/`ssl` puro do Python no mesmo container alcança o iPlace instantaneamente — não é bloqueio nem código, é a pilha de rede Twisted/Docker/Akamai específica. Sem observação real produzida; sem promoção a `enabled`. |
 | Fast Shop | candidate | Produto estruturado validado, mas `robots.txt` não autoriza a busca automatizada. |
 | Zoom | enabled | Run `c7461e5f-9f78-422b-bde8-e194ff2f6d23`: 25 observações. |
