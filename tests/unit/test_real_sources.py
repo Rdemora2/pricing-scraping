@@ -15,6 +15,7 @@ from pricing_intel.collection.real_sources import (
     BuscapeOfferParser,
     SkipLog,
     TwoAFinderMarkdownParser,
+    _color_from_text,
     extract_amazon_listing,
     extract_americanas_listing,
     extract_carrefour_listing,
@@ -1161,3 +1162,26 @@ def test_carrefour_records_a_refused_sitemap_as_an_access_loss() -> None:
     assert len(results) == 1
     assert results[0]["stage"] == RejectionStage.ACCESS
     assert "403" in results[0]["reason"]
+
+
+@pytest.mark.parametrize(
+    ("title", "expected"),
+    [
+        ("iPhone 17 Pro Max - 1 TB - Laranja", "Laranja-Cósmico"),
+        ("iPhone 17 Pro Max (512GB) Laranja-cósmica, Tela de 6,9", "Laranja-Cósmico"),
+        ("Iphone 17 Pro Max 256gb Apple Blue", "Azul-Intenso"),
+        # "blue" must not be found inside "Bluetooth".
+        ("iPhone 17 Pro Max 256GB Bluetooth 5.3 Prateado", "Prateado"),
+    ],
+)
+def test_colour_aliases_recover_retailers_lost_to_spelling(title: str, expected: str) -> None:
+    assert _color_from_text(title, model="iphone_17_pro_max") == expected
+
+
+def test_a_title_without_any_colour_is_still_refused() -> None:
+    # Variant identity is never relaxed to fill coverage: a listing that names
+    # no colour stays out, quarantined rather than guessed.
+    with pytest.raises(ExtractionError, match="supported color"):
+        _color_from_text(
+            "Celular Samsung Galaxy S25 Ultra 5G, 256GB, 12GB RAM", model="galaxy_s25_ultra"
+        )

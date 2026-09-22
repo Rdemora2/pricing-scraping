@@ -209,8 +209,24 @@ _MODEL_COLOR_ALIASES: dict[str, dict[str, str]] = {
         "natural": "Titânio-Natural",
         "deserto": "Titânio-Deserto",
     },
-    "iphone_17_pro": {"prata": "Prateado", "azul": "Azul-Intenso"},
-    "iphone_17_pro_max": {"prata": "Prateado", "azul": "Azul-Intenso"},
+    # "laranja" was the one colourway of this family left without an alias
+    # while "prata" and "azul" had one. The quarantine of INC-14 showed real
+    # retailers writing "Laranja", "Laranja-cósmica" and the English "Blue";
+    # each maps to exactly one catalog colour here, so normalising them does
+    # not relax variant identity, it only stops losing the retailer to an
+    # orthographic difference.
+    "iphone_17_pro": {
+        "prata": "Prateado",
+        "azul": "Azul-Intenso",
+        "blue": "Azul-Intenso",
+        "laranja": "Laranja-Cósmico",
+    },
+    "iphone_17_pro_max": {
+        "prata": "Prateado",
+        "azul": "Azul-Intenso",
+        "blue": "Azul-Intenso",
+        "laranja": "Laranja-Cósmico",
+    },
     "galaxy_s25_ultra": {
         "azul": "Titânio-Azul",
         "preto": "Titânio-Preto",
