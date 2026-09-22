@@ -5,11 +5,13 @@ import pytest
 from scrapy.http import Request, TextResponse
 
 from pricing_intel.collection.extraction import ExtractionError, iter_product_json_ld
+from pricing_intel.collection.items import ListingRejectedItem
 from pricing_intel.collection.real_sources import (
     BUSCAPE_MAX_OFFER_PAGES,
     BUSCAPE_OFFER_PAGE_SIZE,
     MAX_AGGREGATE_OFFERS,
     BuscapeOfferParser,
+    SkipLog,
     TwoAFinderMarkdownParser,
     extract_amazon_listing,
     extract_americanas_listing,
@@ -31,7 +33,7 @@ from pricing_intel.collection.spiders.retail import (
     SamsungShopSpider,
     ZoomSpider,
 )
-from pricing_intel.domain.enums import Availability, Condition
+from pricing_intel.domain.enums import Availability, Condition, RejectionStage
 from pricing_intel.matching.signature import compute_signature
 from scripts.seed_catalog import PRODUCTS
 
@@ -901,3 +903,119 @@ def test_buscape_never_paginates_past_the_configured_ceiling() -> None:
     )
 
     assert not [result for result in results if isinstance(result, Request)]
+
+
+def test_zoom_skip_log_names_the_retailer_lost_to_an_unreadable_colour() -> None:
+    # A retailer whose title does not name a catalog colour is dropped on
+    # purpose — variant identity is never relaxed. The point here is that the
+    # drop stops being invisible.
+    offers = [
+        {
+            "@type": "Offer",
+            "id": "offer-1",
+            "name": "Apple iPhone 17 Pro Max (256 GB) - Prateado",
+            "offeredBy": "Amazon",
+            "price": "9757.11",
+            "priceCurrency": "BRL",
+        },
+        {
+            "@type": "Offer",
+            "id": "offer-2",
+            "name": "Apple iPhone 17 Pro Max 256 GB",
+            "offeredBy": "Loja Sem Cor",
+            "price": "9899.00",
+            "priceCurrency": "BRL",
+        },
+    ]
+    payload = {
+        "@type": "Product",
+        "name": "iPhone 17 Pro Max 256GB",
+        "offers": {"@type": "AggregateOffer", "offers": offers},
+    }
+    skips = SkipLog()
+
+    listings = extract_zoom_listings(
+        _html(payload),
+        "https://www.zoom.com.br/celular/celular-apple-iphone-17-pro-max-256gb",
+        skips=skips,
+    )
+
+    assert [item.seller_display_name for item in listings] == ["Amazon"]
+    assert len(skips.entries) == 1
+    # The recorded title is what a human needs to grow _MODEL_COLOR_ALIASES,
+    # and the reason has to name the field that failed.
+    assert skips.entries[0].raw_title == "Apple iPhone 17 Pro Max 256 GB"
+    assert "color" in skips.entries[0].reason
+
+
+def test_zoom_spider_persists_each_skipped_entry_as_a_rejection() -> None:
+    payload = {
+        "@type": "Product",
+        "name": "iPhone 17 Pro Max 256GB",
+        "offers": {
+            "@type": "AggregateOffer",
+            "offers": [
+                {
+                    "@type": "Offer",
+                    "id": "offer-1",
+                    "name": "Apple iPhone 17 Pro Max (256 GB) - Prateado",
+                    "offeredBy": "Amazon",
+                    "price": "9757.11",
+                    "priceCurrency": "BRL",
+                },
+                {
+                    "@type": "Offer",
+                    "id": "offer-2",
+                    "name": "Apple iPhone 17 Pro Max 256 GB",
+                    "offeredBy": "Loja Sem Cor",
+                    "price": "9899.00",
+                    "priceCurrency": "BRL",
+                },
+            ],
+        },
+    }
+    url = "https://www.zoom.com.br/celular/celular-apple-iphone-17-pro-max-256gb"
+    response = TextResponse(
+        url=url, request=Request(url), body=_html(payload).encode(), encoding="utf-8"
+    )
+    spider = ZoomSpider(source_id="source-1", run_id="run-1", base_url="https://www.zoom.com.br/")
+
+    results = list(spider.parse_product(response))
+
+    rejections = [item for item in results if isinstance(item, ListingRejectedItem)]
+    assert len(results) == 2
+    assert len(rejections) == 1
+    assert rejections[0]["stage"] == RejectionStage.EXTRACTION
+    assert rejections[0]["url"] == url
+
+
+def test_buscape_skip_log_reaches_the_spider_with_the_evidence_url() -> None:
+    hits = [
+        _buscape_hit(1),
+        {
+            "offer_id": "offer-2",
+            "name": "Smartphone Samsung Galaxy S26+ 256GB",
+            "seller": {"id": "9", "name": "Sem Cor"},
+            "sales_condition": {"price": 4599, "stock": 2},
+            "condition": "NEW",
+        },
+    ]
+    evidence_url = "https://www.buscape.com.br/celular/item"
+    spider = BuscapeSpider(
+        source_id="source-1", run_id="run-1", base_url="https://www.buscape.com.br/"
+    )
+
+    results = list(
+        spider.parse_offers(
+            _buscape_offer_response(hits, page=1),
+            evidence_url=evidence_url,
+            product_id="13994200",
+            page=1,
+        )
+    )
+
+    rejections = [item for item in results if isinstance(item, ListingRejectedItem)]
+    assert len(rejections) == 1
+    # Buscapé's offers arrive from a different host than the commercial page;
+    # the rejection has to point at the auditable evidence document.
+    assert rejections[0]["url"] == evidence_url

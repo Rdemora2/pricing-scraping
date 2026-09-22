@@ -11,7 +11,7 @@ import json
 import re
 import unicodedata
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from urllib.parse import unquote, urljoin, urlsplit
 
@@ -42,6 +42,36 @@ MAX_AGGREGATE_OFFERS = 60
 # the only way to observe the retailers listed after the first twenty.
 BUSCAPE_OFFER_PAGE_SIZE = 20
 BUSCAPE_MAX_OFFER_PAGES = 3
+
+# Upper bound on skipped entries retained per extraction. The point of the
+# skip log is to size a loss and name its cause, not to mirror a whole page.
+MAX_RECORDED_SKIPS = 50
+
+
+@dataclass(frozen=True, slots=True)
+class SkippedEntry:
+    raw_title: str
+    reason: str
+
+
+@dataclass(slots=True)
+class SkipLog:
+    """Collects the entries an extractor dropped, for the caller to persist.
+
+    Aggregator pages are where retailer depth comes from, so an entry dropped
+    there is a retailer that silently never reaches the comparison. Extractors
+    stay fail-closed exactly as before; this only makes the cost of failing
+    closed observable instead of invisible.
+    """
+
+    entries: list[SkippedEntry] = field(default_factory=list)
+
+    def record(self, raw_title: str, reason: str) -> None:
+        if len(self.entries) >= MAX_RECORDED_SKIPS:
+            return
+        self.entries.append(SkippedEntry(raw_title=raw_title[:300], reason=reason))
+
+
 # Highest color count in the live catalog is 6 (Galaxy S26 family, see
 # scripts/seed_catalog.py); +2 headroom for near-term catalog growth. A
 # capacity search with more color matches than this silently drops the
@@ -585,7 +615,9 @@ class BuscapeOfferParser:
             raise ExtractionError("Buscapé page does not expose one unambiguous product id")
         return identifiers.pop()
 
-    def parse_page(self, payload_text: str, evidence_url: str) -> BuscapeOfferPage:
+    def parse_page(
+        self, payload_text: str, evidence_url: str, *, skips: SkipLog | None = None
+    ) -> BuscapeOfferPage:
         """Parse one offer page without requiring it to yield canonical offers.
 
         A malformed document is still an error, but an page that simply holds
@@ -599,11 +631,12 @@ class BuscapeOfferParser:
         if not isinstance(hits, list):
             raise ExtractionError("Buscapé offer response is missing hits")
 
+        skips = skips if skips is not None else SkipLog()
         listings: list[RetailListing] = []
         for hit in hits[:MAX_AGGREGATE_OFFERS]:
             if not isinstance(hit, dict):
                 continue
-            listing = self._listing(hit, evidence_url)
+            listing = self._listing(hit, evidence_url, skips)
             if listing is not None:
                 listings.append(listing)
         return BuscapeOfferPage(listings=tuple(listings), hit_count=len(hits))
@@ -615,24 +648,28 @@ class BuscapeOfferParser:
         return list(page.listings)
 
     @staticmethod
-    def _listing(hit: dict, evidence_url: str) -> RetailListing | None:
+    def _listing(hit: dict, evidence_url: str, skips: SkipLog) -> RetailListing | None:
         title = str(hit.get("name") or "").strip()
         seller = hit.get("seller")
         sales_condition = hit.get("sales_condition")
         if not title or not isinstance(seller, dict) or not isinstance(sales_condition, dict):
+            skips.record(title, "offer is missing its title, retailer or sales condition")
             return None
         seller_name = str(seller.get("name") or "").strip()
         external_id = str(hit.get("offer_id") or "").strip()
         if not seller_name or not external_id:
+            skips.record(title, "offer is missing its retailer name or offer id")
             return None
         try:
             brand, model, _ = _catalog_identity(title)
             storage = _storage_from_text(title)
             color = _color_from_text(title, model=model)
             price = Decimal(str(sales_condition.get("price")))
-        except ExtractionError, InvalidOperation, TypeError:
+        except (ExtractionError, InvalidOperation, TypeError) as exc:
+            skips.record(title, str(exc) or "offer does not resolve to a canonical variant")
             return None
         if price <= 0:
+            skips.record(title, "offer price is not positive")
             return None
 
         installments = sales_condition.get("installments")
@@ -711,7 +748,10 @@ def _payment_terms(offer: dict) -> PaymentTerms:
     )
 
 
-def extract_iplace_listings(page_html: str, page_url: str) -> list[RetailListing]:
+def extract_iplace_listings(
+    page_html: str, page_url: str, *, skips: SkipLog | None = None
+) -> list[RetailListing]:
+    skips = skips if skips is not None else SkipLog()
     listings: list[RetailListing] = []
     for product in iter_product_json_ld(page_html):
         if len(listings) >= MAX_PRODUCT_VARIANTS:
@@ -719,7 +759,8 @@ def extract_iplace_listings(page_html: str, page_url: str) -> list[RetailListing
         name = str(product.get("name", "")).strip()
         try:
             attributes = _canonical_attributes(name)
-        except ExtractionError:
+        except ExtractionError as exc:
+            skips.record(name, str(exc))
             continue
         offer = _offer(product)
         sku = str(product.get("sku") or offer.get("sku") or "").strip()
@@ -865,8 +906,11 @@ def extract_kabum_listing(page_html: str, page_url: str) -> RetailListing:
     )
 
 
-def extract_samsung_shop_listings(page_html: str, page_url: str) -> list[RetailListing]:
+def extract_samsung_shop_listings(
+    page_html: str, page_url: str, *, skips: SkipLog | None = None
+) -> list[RetailListing]:
     """Extract every purchasable SKU published in Samsung Shop ProductGroup JSON-LD."""
+    skips = skips if skips is not None else SkipLog()
     listings: list[RetailListing] = []
     for product in iter_product_json_ld(page_html):
         if len(listings) >= MAX_PRODUCT_VARIANTS:
@@ -875,7 +919,8 @@ def extract_samsung_shop_listings(page_html: str, page_url: str) -> list[RetailL
         color = str(product.get("color") or "").strip()
         try:
             attributes = _canonical_attributes(f"{name} {color}")
-        except ExtractionError:
+        except ExtractionError as exc:
+            skips.record(f"{name} {color}".strip(), str(exc))
             continue
         offer = _offer(product)
         sku = str(product.get("sku") or product.get("mpn") or "").strip()
@@ -910,7 +955,9 @@ def extract_samsung_shop_listings(page_html: str, page_url: str) -> list[RetailL
     return listings
 
 
-def extract_zoom_listings(page_html: str, page_url: str) -> list[RetailListing]:
+def extract_zoom_listings(
+    page_html: str, page_url: str, *, skips: SkipLog | None = None
+) -> list[RetailListing]:
     """Extract the bounded retailer sample published in Zoom AggregateOffer JSON-LD.
 
     Zoom remains the evidence channel; ``offeredBy`` is retained as the actual
@@ -924,6 +971,7 @@ def extract_zoom_listings(page_html: str, page_url: str) -> list[RetailListing]:
     if not isinstance(aggregate, dict) or not isinstance(aggregate.get("offers"), list):
         raise ExtractionError("Zoom Product JSON-LD is missing AggregateOffer entries")
 
+    skips = skips if skips is not None else SkipLog()
     listings: list[RetailListing] = []
     for offer in aggregate["offers"][:MAX_AGGREGATE_OFFERS]:
         if not isinstance(offer, dict):
@@ -932,11 +980,13 @@ def extract_zoom_listings(page_html: str, page_url: str) -> list[RetailListing]:
         external_id = str(offer.get("id") or "").strip()
         seller_name = str(offer.get("offeredBy") or "").strip()
         if not external_id or not seller_name:
+            skips.record(title, "aggregate offer is missing its id or retailer")
             continue
         try:
             storage = _storage_from_text(title)
             color = _color_from_text(title, model=model)
-        except ExtractionError:
+        except ExtractionError as exc:
+            skips.record(title, str(exc))
             continue
         listings.append(
             RetailListing(

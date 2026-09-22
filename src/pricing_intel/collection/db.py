@@ -18,7 +18,13 @@ from psycopg.types.json import Jsonb
 
 from pricing_intel.config import get_settings
 from pricing_intel.db import sql
-from pricing_intel.domain.enums import Availability, Condition, EvidenceType, MatchMethod
+from pricing_intel.domain.enums import (
+    Availability,
+    Condition,
+    EvidenceType,
+    MatchMethod,
+    RejectionStage,
+)
 from pricing_intel.domain.models import (
     DiscoveredPage,
     Evidence,
@@ -87,6 +93,31 @@ class SyncDb:
         self._conn.commit()
         assert seller is not None
         return seller
+
+    def record_listing_rejection(
+        self,
+        *,
+        collection_run_id: UUID,
+        source_id: UUID,
+        stage: RejectionStage,
+        reason: str,
+        url: str,
+        raw_title: str,
+        attributes: dict[str, str] | None = None,
+    ) -> None:
+        self._conn.execute(
+            sql.INSERT_LISTING_REJECTION,
+            {
+                "collection_run_id": collection_run_id,
+                "source_id": source_id,
+                "stage": stage.value,
+                "reason": reason[:1000],
+                "url": url,
+                "raw_title": raw_title[:300],
+                "attributes": Jsonb(attributes or {}),
+            },
+        )
+        self._conn.commit()
 
     def find_variant_by_gtin(self, gtin: str) -> Variant | None:
         with self._conn.cursor(row_factory=class_row(Variant)) as cur:

@@ -45,8 +45,18 @@ async def get_run_stats(run_id: UUID) -> dict[str, int]:
         await cur.execute(sql.COUNT_RUN_STATS, {"run_id": run_id})
         row = await cur.fetchone()
         assert row is not None
-        offers_observed, evidence_recorded = row
-        return {"offers_observed": offers_observed, "evidence_recorded": evidence_recorded}
+        observed, evidence, rejected_access, rejected_extraction, rejected_matching = row
+        return {
+            "offers_observed": observed,
+            "evidence_recorded": evidence,
+            # Collection loss, split by where it happened. Zero observations
+            # with a high access count means the source blocked the run; a high
+            # extraction count means the source changed shape; a high matching
+            # count means the catalog does not describe what it is selling.
+            "listings_rejected_access": rejected_access,
+            "listings_rejected_extraction": rejected_extraction,
+            "listings_rejected_matching": rejected_matching,
+        }
 
 
 async def finish_run(

@@ -32,3 +32,19 @@ class ListingItem(scrapy.Item):
     condition = scrapy.Field()
     payment_terms = scrapy.Field()
     shipping = scrapy.Field()
+
+
+class ListingRejectedItem(scrapy.Item):
+    """A listing the collector saw and deliberately did not turn into an offer.
+
+    Persisting these is what makes collection loss measurable: without it a
+    dropped retailer is only a log line in a subprocess nobody reads.
+    """
+
+    source_id = scrapy.Field()
+    run_id = scrapy.Field()
+    stage = scrapy.Field()
+    reason = scrapy.Field()
+    url = scrapy.Field()
+    raw_title = scrapy.Field()
+    attributes = scrapy.Field()

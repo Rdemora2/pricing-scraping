@@ -83,7 +83,21 @@ COUNT_PENDING_PRODUCT_PAGES = """
 COUNT_RUN_STATS = """
     SELECT
         (SELECT COUNT(*) FROM price_observation WHERE collection_run_id = %(run_id)s) AS offers_observed,
-        (SELECT COUNT(*) FROM evidence WHERE collection_run_id = %(run_id)s) AS evidence_recorded
+        (SELECT COUNT(*) FROM evidence WHERE collection_run_id = %(run_id)s) AS evidence_recorded,
+        (SELECT COUNT(*) FROM listing_rejection
+          WHERE collection_run_id = %(run_id)s AND stage = 'access') AS listings_rejected_access,
+        (SELECT COUNT(*) FROM listing_rejection
+          WHERE collection_run_id = %(run_id)s AND stage = 'extraction') AS listings_rejected_extraction,
+        (SELECT COUNT(*) FROM listing_rejection
+          WHERE collection_run_id = %(run_id)s AND stage = 'matching') AS listings_rejected_matching
+"""
+
+INSERT_LISTING_REJECTION = """
+    INSERT INTO listing_rejection
+        (collection_run_id, source_id, stage, reason, url, raw_title, attributes)
+    VALUES
+        (%(collection_run_id)s, %(source_id)s, %(stage)s, %(reason)s, %(url)s,
+         %(raw_title)s, %(attributes)s)
 """
 
 GET_OR_CREATE_SELLER = """
