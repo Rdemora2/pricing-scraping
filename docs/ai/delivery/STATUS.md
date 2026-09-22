@@ -1,8 +1,8 @@
 # Estado de execução
 
 **Atualizado em:** `2026-09-21`
-**Estado global:** `IN_REVIEW`
-**Unidade ativa:** `INC-12` — iPlace passa a usar fallback de navegador como caminho normal (não mais raro); Casas Bahia/Ponto/Extra/Magalu avaliados e descartados com evidência concreta (ver STATUS abaixo)
+**Estado global:** `VERIFIED`
+**Unidade ativa:** `INC-12` — iPlace via fallback de navegador; revisão funcional/segurança independentes concluídas, PR #12 mesclado (squash, `20a8e74`), checks remotos verdes
 
 O roadmap conclui o laboratório e avança o portal local de inteligência de
 preços com fontes reais. A entrega permanece limitada ao ambiente local; não
@@ -140,8 +140,13 @@ model→slug verificado contra `productSitemap.xml`, não busca — `/searchresu
 Plus/Pro/Pro Max, 17 Pro/Pro Max, Air); iPhone 16/17 base e 18 Pro/Pro Max
 ainda sem página confirmada nesse sitemap. Runtime local: `uv run pytest`
 179 passados (8 novos), `ruff check`, `ruff format --check` e `ty check`
-verdes. Aguarda execução real pelo pipeline completo para promoção a
-`enabled`.
+verdes. Revisão funcional e de segurança independentes aprovaram localmente,
+sem achado bloqueante/alto/médio; três achados baixos corrigidos no mesmo
+commit (guarda de status em `parse_browser_product`, asserção da allowlist
+restrita, precisão no relato dos experimentos contra Casas Bahia). `PR #12`
+publicado e mesclado (squash, `20a8e74`), checks remotos verdes, head relido
+imediatamente antes da decisão. Aguarda execução real pelo pipeline completo
+para promoção do iPlace a `enabled`.
 
 O reviewer independente aprovou localmente o ciclo 2 do INC-05 no fingerprint
 `fadb3ec6d99b17b80386d1296655a3ef65be8f3523e59bd2760133dcb64d0b75`, sem
