@@ -1,5 +1,14 @@
 # INC-12 — iPlace via fallback de navegador; avaliação de Casas Bahia/Ponto/Extra/Magalu/TerabyteShop/Pichau
 
+## Readback remoto
+
+- PR: [#12](https://github.com/Rdemora2/pricing-scraping/pull/12).
+- `reviewDecision` vazio, `mergeable: MERGEABLE`, `mergeStateStatus: CLEAN`
+  relidos imediatamente antes da decisão de merge.
+- Método: squash-merge, `--match-head-commit`. Commit resultante em `main`:
+  `20a8e74`.
+- `main` local sincronizada via `python3 .codex/safe_git_sync.py sync-main`.
+
 ## Escopo e aceite
 
 - Branch: `feature/inc-12-iplace-browser-fallback` (a criar).
