@@ -18,6 +18,7 @@ ferramenta ou documentação do produto; esta fila é o índice operacional loca
 | 11 | `INC-10` | Coletores representam fontes e pesquisam o aparelho internamente; UX acompanha a coleta e mantém armazenamento, cor e detalhe na mesma população comparável | `.` | `INC-08` | `LOCAL_VERIFIED_WITH_EXTERNAL_GATE` |
 | 12 | `INC-11` | Perfil HTTP negocia como um Chrome/Windows atual (UA, Client Hints) e respeita `Retry-After` em HTTP 429, reduzindo bloqueio por perfil de headers incomum, sem contornar `robots.txt`, CAPTCHA, autenticação ou escalar bloqueio para o fallback de navegador | `.` | `INC-07B` | `VERIFIED` |
 | 13 | `INC-12` | iPlace usa o fallback de navegador existente como caminho normal (plataforma migrou para renderização client-side); resolução de URL por sitemap verificado, não busca. Casas Bahia/Ponto/Extra/Magalu avaliados e descartados com evidência concreta (preço atrás de telemetria comportamental ativa; Playwright sem modificação recebe 403 nomeado por `navigator.webdriver`) | `.` | `INC-11` | `VERIFIED` |
+| 14 | `INC-13` | Corrige `MAX_SEARCH_RESULTS_PER_CAPACITY` (3→8) para não truncar cores em aparelhos com mais de 3 (15 dos 18 do catálogo); orçamento de páginas reajustado em Zoom/Buscapé/KaBuM!/Bondfaro/Americanas; validado com execução real (Galaxy S26 Ultra, 6 cores observadas) | `.` | `INC-10` | `IN_REVIEW` |
 
 Fila vazia significa governança ainda não adotada; não invente unidades.
 

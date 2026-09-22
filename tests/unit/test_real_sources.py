@@ -446,6 +446,27 @@ def test_search_discovery_keeps_only_exact_same_host_product_pages() -> None:
     assert urls == ["https://www.zoom.com.br/celular/celular-apple-iphone-17-pro-max-512gb"]
 
 
+def test_search_discovery_follows_every_color_up_to_the_catalog_maximum() -> None:
+    # Galaxy S26 Ultra ships 6 colors (scripts/seed_catalog.py) — the highest
+    # in the live catalog. A capacity search naming all of them must not be
+    # silently truncated to the first few matches.
+    colors = ["Titânio Preto", "Titânio Branco", "Titânio Prata", "Titânio Azul", "Verde", "Rosa"]
+    page = "".join(
+        f'<a href="/celular/samsung-galaxy-s26-ultra-256gb-{i}">Samsung Galaxy S26 Ultra 256GB {color}</a>'
+        for i, color in enumerate(colors)
+    )
+
+    urls = extract_product_search_urls(
+        page,
+        "https://www.zoom.com.br/busca/samsung%2Bgalaxy%2Bs26%2Bultra%2B256gb",
+        product_name="Samsung Galaxy S26 Ultra",
+        product_model="galaxy_s26_ultra",
+        storage_gb="256",
+    )
+
+    assert len(urls) == len(colors)
+
+
 @pytest.mark.parametrize(
     ("product_name", "product_model", "expected_path"),
     [

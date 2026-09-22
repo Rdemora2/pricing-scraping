@@ -394,7 +394,9 @@ class AmericanasSpider(_RetailSpider):
     extractor_name = "americanas_product_jsonld"
     browser_fallback_enabled = True
     browser_allowed_domains = ("www.americanas.com.br", "americanas.vtexassets.com")
-    custom_settings = {"CLOSESPIDER_PAGECOUNT": 40}  # noqa: RUF012
+    # Up to 4 storage searches (+ up to 4 rendered-search fallbacks) plus up
+    # to MAX_SEARCH_RESULTS_PER_CAPACITY product pages per capacity.
+    custom_settings = {"CLOSESPIDER_PAGECOUNT": 56}  # noqa: RUF012
 
     def catalog_search_url(self, capacity: str) -> str:
         return urljoin(self.base_url, f"s?q={quote_plus(f'{self.product_name} {capacity}')}")
@@ -470,8 +472,9 @@ class KabumSpider(_RetailSpider):
     name = "kabum"
     allowed_domains = ("www.kabum.com.br",)
     extractor_name = "kabum_product_jsonld"
-    # Four HTTP searches, up to four JS fallbacks and three product pages per capacity.
-    custom_settings = {"CLOSESPIDER_PAGECOUNT": 24}  # noqa: RUF012
+    # Four HTTP searches, up to four JS fallbacks and up to
+    # MAX_SEARCH_RESULTS_PER_CAPACITY product pages per capacity.
+    custom_settings = {"CLOSESPIDER_PAGECOUNT": 48}  # noqa: RUF012
     browser_fallback_enabled = True
     browser_allowed_domains = ("www.kabum.com.br",)
 
@@ -559,8 +562,9 @@ class ZoomSpider(_RetailSpider):
     name = "zoom"
     allowed_domains = ("www.zoom.com.br",)
     extractor_name = "zoom_aggregate_offer_jsonld"
-    # Four searches plus up to three product pages for each capacity.
-    custom_settings = {"CLOSESPIDER_PAGECOUNT": 20}  # noqa: RUF012
+    # Four searches plus up to MAX_SEARCH_RESULTS_PER_CAPACITY product pages
+    # (one per matched color) for each capacity.
+    custom_settings = {"CLOSESPIDER_PAGECOUNT": 40}  # noqa: RUF012
 
     async def start(self):
         for request in self.catalog_search_requests(self.parse_search):
@@ -583,7 +587,9 @@ class BondfaroSpider(_RetailSpider):
     name = "bondfaro"
     allowed_domains = ("www.bondfaro.com.br",)
     extractor_name = "bondfaro_aggregate_offer_jsonld"
-    custom_settings = {"CLOSESPIDER_PAGECOUNT": 20}  # noqa: RUF012
+    # Four searches plus up to MAX_SEARCH_RESULTS_PER_CAPACITY product pages
+    # (one per matched color) for each capacity.
+    custom_settings = {"CLOSESPIDER_PAGECOUNT": 40}  # noqa: RUF012
 
     def catalog_search_url(self, capacity: str) -> str:
         query = quote_plus(f"{self.product_name} {capacity}")
@@ -626,8 +632,9 @@ class TwoAFinderSpider(_RetailSpider):
 class BuscapeSpider(_RetailSpider):
     name = "buscape"
     # Product page + public offer document, plus one robots.txt fetch per host.
-    # Four searches, up to twelve product pages and one offer document per page.
-    custom_settings = {"CLOSESPIDER_PAGECOUNT": 32}  # noqa: RUF012 - Scrapy contract
+    # Four searches, up to MAX_SEARCH_RESULTS_PER_CAPACITY product pages per
+    # capacity (one per matched color) and one offer document per page.
+    custom_settings = {"CLOSESPIDER_PAGECOUNT": 80}  # noqa: RUF012 - Scrapy contract
     allowed_domains = ("www.buscape.com.br", "api-v1.zoom.com.br")
     extractor_name = "buscape_public_product_offers"
     extractor_version = "1.0.0"

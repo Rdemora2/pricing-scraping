@@ -1,8 +1,8 @@
 # Estado de execução
 
-**Atualizado em:** `2026-09-21`
-**Estado global:** `VERIFIED`
-**Unidade ativa:** `INC-12` — iPlace via fallback de navegador; revisão funcional/segurança independentes concluídas, PR #12 mesclado (squash, `20a8e74`), checks remotos verdes
+**Atualizado em:** `2026-09-22`
+**Estado global:** `IN_REVIEW`
+**Unidade ativa:** `INC-13` — corrige teto de cores por busca de capacidade (3→8), validado com execução real do pipeline completo
 
 O roadmap conclui o laboratório e avança o portal local de inteligência de
 preços com fontes reais. A entrega permanece limitada ao ambiente local; não
@@ -147,6 +147,29 @@ restrita, precisão no relato dos experimentos contra Casas Bahia). `PR #12`
 publicado e mesclado (squash, `20a8e74`), checks remotos verdes, head relido
 imediatamente antes da decisão. Aguarda execução real pelo pipeline completo
 para promoção do iPlace a `enabled`.
+
+Fora do escopo do INC-12: uma tentativa de validar iPlace de verdade pelo
+pipeline completo (worker Docker) falhou duas vezes consecutivas — todas as
+requisições receberam `DownloadTimeoutError` de 15s. Diagnóstico isolou uma
+incompatibilidade de rede entre o cliente Twisted do Scrapy e o edge Akamai
+do iPlace especificamente de dentro da rede Docker deste ambiente (o mesmo
+container coleta Zoom normalmente, e `urllib` puro do Python no mesmo
+container alcança o iPlace instantaneamente). Revertido para `candidate`
+(PR #14) — sem observação real, sem promoção, mantendo a política do
+projeto.
+
+O `INC-13` usou a stack local rodando de verdade para investigar diversidade
+de capacidade/cor nas fontes habilitadas. Achado: `MAX_SEARCH_RESULTS_PER_
+CAPACITY = 3` (`collection/real_sources.py`) truncava a busca de produto a 3
+cores por capacidade — mas 15 dos 18 aparelhos do catálogo têm mais de 3
+cores (Galaxy S26 tem 6). Elevado para 8 (máximo real do catálogo é 6, +2 de
+margem), com `CLOSESPIDER_PAGECOUNT` reajustado em Zoom/Buscapé/KaBuM!/
+Bondfaro/Americanas para acomodar o novo teto. Validado com execução real:
+Galaxy S26 Ultra, nunca antes coletado nesta stack, passou a mostrar as 6
+cores reais numa única fonte (Zoom) logo na primeira coleta pós-correção;
+consolidado final com 4 fontes chegou a 61% de cobertura de variantes, 25
+ofertas e 11 varejistas. Runtime local: `uv run pytest` 180 passados (1
+novo), `ruff check`, `ruff format --check` e `ty check` verdes.
 
 O reviewer independente aprovou localmente o ciclo 2 do INC-05 no fingerprint
 `fadb3ec6d99b17b80386d1296655a3ef65be8f3523e59bd2760133dcb64d0b75`, sem

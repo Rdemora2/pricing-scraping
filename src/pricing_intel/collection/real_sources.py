@@ -29,7 +29,13 @@ from pricing_intel.domain.models import PaymentTerms, ShippingTerms
 
 MAX_PRODUCT_VARIANTS = 24
 MAX_AGGREGATE_OFFERS = 20
-MAX_SEARCH_RESULTS_PER_CAPACITY = 3
+# Highest color count in the live catalog is 6 (Galaxy S26 family, see
+# scripts/seed_catalog.py); +2 headroom for near-term catalog growth. A
+# capacity search with more color matches than this silently drops the
+# rest — it previously sat at 3, which quietly capped every catalog device
+# with 4+ colors (15 of 18) to the first 3 colors search results happened
+# to return.
+MAX_SEARCH_RESULTS_PER_CAPACITY = 8
 
 
 @dataclass(frozen=True, slots=True)
