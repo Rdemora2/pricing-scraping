@@ -57,6 +57,15 @@ SOURCES = (
         base_url="https://www.iplace.com.br/",
         kind="real",
         adapter_name="iplace",
+        # Extraction verified correct against real pages fetched from the
+        # host (INC-12), but the Scrapy/Twisted client cannot complete a
+        # request to iPlace's Akamai edge from inside this Docker network —
+        # every request times out at 15s, twice, consistently, while the
+        # same container reaches Zoom fine and plain Python (urllib/ssl) in
+        # the same container reaches iPlace instantly. Environment-specific
+        # network incompatibility, not a code or blocking issue. Promote
+        # only after a real run actually produces observations.
+        status="candidate",
     ),
     SeedSource(
         name="Fast Shop",
